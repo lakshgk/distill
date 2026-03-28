@@ -63,11 +63,13 @@ distill/
         test_ocr.py
         test_streaming.py
         test_vision.py
-  app/             # distill-app: Gradio desktop UI
+  app/             # distill-app: web UI + REST API
     distill_app/
-      ui.py        # Gradio Blocks layout + convert_file(), quality_badge()
+      server.py    # FastAPI app — GET / and POST /api/convert
+      static/
+        index.html # Browser UI (HTML/CSS/JS, served at GET /)
     tests/
-      test_ui.py
+      test_server.py
 ```
 
 ---
@@ -240,7 +242,7 @@ for chunk in ir.render_stream(front_matter=False):
 | 3 | Google Workspace parsers (Docs/Sheets/Slides via Drive API) | Complete |
 | 4 | Scanned PDF OCR (docling + Tesseract) | Complete |
 | 5a | Streaming API (`convert_stream`) | Complete |
-| 5b-i | Gradio UI (`distill-app`) | Complete |
+| 5b-i | Web UI + REST API (`distill-app`) | Complete |
 | 5c | Vision captioning (`distill-core[vision]`) | Complete |
 | 5e | PyPI publishing (CI workflows) | Complete |
 | 5b-ii, 5d | Docker, Hardening/CI corpus | Pending |
