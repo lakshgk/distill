@@ -9,7 +9,7 @@ cd distill
 python -m venv .venv
 source .venv/bin/activate        # Windows: .venv\Scripts\activate
 
-pip install -e "packages/core[dev,google,vision,ocr]"
+pip install -e "packages/core[dev]"
 pip install -e packages/app
 ```
 
@@ -81,6 +81,17 @@ distill/
 - Python 3.10+, type-annotated function signatures
 - No external formatters enforced — match the style of the file you are editing
 - Keep `distill-core` free of UI and server dependencies
+
+## Roadmap
+
+Good areas to contribute:
+
+| Area | Notes |
+|------|-------|
+| **Docker image** | `python:3.11-slim` + LibreOffice pre-installed; solves `.doc`/`.xls`/`.ppt` support without requiring users to install LibreOffice themselves |
+| **Hardening / test corpus** | Edge-case documents: nested tables, merged cells, multi-column PDFs, malformed files, oversized inputs |
+| **CommonMark linter** | Add a post-render validation step to the quality scorer |
+| **Plain text / HTML / RTF** | New parser formats |
 
 ## License
 

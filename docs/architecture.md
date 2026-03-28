@@ -95,7 +95,7 @@ renderers — changing it is a breaking change.
 | `BlockQuote` | Block-level quotation containing other blocks. |
 | `Image` | Extracted image with type classification, path, alt text, caption, OCR text. |
 
-### DocumentMetadata fields (Phase 1)
+### DocumentMetadata fields
 
 ```python
 title, author, created_at, modified_at   # core provenance
@@ -130,14 +130,14 @@ All parsers accept a `ParseOptions` dataclass:
 | `streaming` | `False` | Enable streaming output via `convert_stream()` |
 | `extra` | `{}` | Per-parser overrides (e.g. `max_file_size`, `max_unzip_size`) |
 
-### Routing and quality gating (Phase 1)
+### Routing
 
 | Format | Primary | Fallback |
 |--------|---------|----------|
 | `.docx` | mammoth → HTML → IR | pandoc → GFM (if mammoth yields no content) |
 | `.doc` | LibreOffice → .docx → DocxParser | — |
 | `.pdf` native | pdfplumber (text + tables) | — |
-| `.pdf` scanned | docling or Tesseract | (Phase 4) |
+| `.pdf` scanned | docling or Tesseract (requires `[ocr]`) | — |
 | `.xlsx` | openpyxl | — |
 | `.xls` | LibreOffice → .xlsx → XlsxParser | — |
 | `.pptx` | python-pptx | — |
@@ -177,7 +177,7 @@ Key behaviours:
 | `table_preservation` | 25% | Tables in IR vs GFM table separators in output |
 | `list_preservation` | 15% | List items in IR vs Markdown list items |
 | `token_reduction_ratio` | 20% | Token efficiency of Markdown vs naive estimate |
-| `valid_markdown` | 15% | Output passes CommonMark validation (assumed true, Phase 5 adds linter) |
+| `valid_markdown` | 15% | Output passes CommonMark validation |
 
 `QualityScore.passed` returns `True` if `overall >= 0.70`.
 
@@ -231,18 +231,3 @@ for chunk in ir.render_stream(front_matter=False):
     print(chunk)
 ```
 
----
-
-## Phase Roadmap
-
-| Phase | Scope | Status |
-|-------|-------|--------|
-| 1 | DOCX + PDF parsers, IR, renderer, quality, security baseline | Complete |
-| 2 | XLSX + PPTX parsers, legacy .doc/.xls/.ppt via LibreOffice | Complete |
-| 3 | Google Workspace parsers (Docs/Sheets/Slides via Drive API) | Complete |
-| 4 | Scanned PDF OCR (docling + Tesseract) | Complete |
-| 5a | Streaming API (`convert_stream`) | Complete |
-| 5b-i | Web UI + REST API (`distill-app`) | Complete |
-| 5c | Vision captioning (`distill-core[vision]`) | Complete |
-| 5e | PyPI publishing (CI workflows) | Complete |
-| 5b-ii, 5d | Docker, Hardening/CI corpus | Pending |
