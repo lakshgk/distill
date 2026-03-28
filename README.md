@@ -135,7 +135,7 @@ distill/
 │   │   │   ├── quality.py     # Quality scoring
 │   │   │   └── parsers/       # Format-specific parsers
 │   │   └── tests/
-│   └── app/           # distill-app: Gradio UI
+│   └── app/           # distill-app: web UI + REST API
 └── docs/
 ```
 
