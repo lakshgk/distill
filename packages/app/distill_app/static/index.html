@@ -1,0 +1,694 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Distill — Document to Markdown Converter</title>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #ffffff;
+      --fg: #0f172a;
+      --fg-muted: #64748b;
+      --fg-subtle: #94a3b8;
+      --border: #e2e8f0;
+      --muted: #f1f5f9;
+      --card: #ffffff;
+      --primary: #6366f1;
+      --primary-fg: #ffffff;
+      --primary-muted: #eef2ff;
+      --radius: 12px;
+      --shadow-sm: 0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04);
+      --shadow: 0 4px 12px rgba(0,0,0,.08), 0 2px 4px rgba(0,0,0,.04);
+      --shadow-lg: 0 12px 32px rgba(0,0,0,.12), 0 4px 8px rgba(0,0,0,.06);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    }
+
+    body { background: var(--bg); color: var(--fg); min-height: 100vh; display: flex; flex-direction: column; }
+
+    /* ── Header ── */
+    header {
+      border-bottom: 1px solid var(--border);
+      background: rgba(255,255,255,.85);
+      backdrop-filter: blur(8px);
+      position: sticky; top: 0; z-index: 100;
+    }
+    .header-inner {
+      max-width: 1080px; margin: 0 auto; padding: 0 24px;
+      height: 56px; display: flex; align-items: center; justify-content: space-between;
+    }
+    .logo { display: flex; align-items: center; gap: 10px; }
+    .logo-icon {
+      width: 28px; height: 28px; background: var(--primary); border-radius: 8px;
+      display: flex; align-items: center; justify-content: center; color: #fff; font-size: 13px;
+    }
+    .logo-text { font-size: 15px; font-weight: 600; letter-spacing: -.02em; }
+    .logo-badge {
+      font-size: 10px; font-weight: 600; padding: 2px 7px;
+      background: var(--muted); color: var(--fg-muted);
+      border-radius: 20px; border: 1px solid var(--border);
+      letter-spacing: .02em; text-transform: uppercase;
+    }
+    .header-tagline { font-size: 12px; color: var(--fg-muted); }
+
+    /* ── Main grid ── */
+    main { flex: 1; max-width: 1080px; margin: 0 auto; width: 100%; padding: 24px; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+    @media (max-width: 760px) { .grid { grid-template-columns: 1fr; } .header-tagline { display: none; } }
+
+    .panel-label {
+      font-size: 11px; font-weight: 600; color: var(--fg-muted);
+      text-transform: uppercase; letter-spacing: .08em; margin-bottom: 14px;
+    }
+
+    /* ── Drop zone ── */
+    .dropzone {
+      border: 2px dashed var(--border); border-radius: 18px;
+      min-height: 200px; display: flex; align-items: center; justify-content: center;
+      cursor: pointer; transition: border-color .18s, background .18s, transform .18s;
+      text-align: center; padding: 32px 24px; background: var(--muted);
+    }
+    .dropzone:hover, .dropzone.drag { border-color: var(--primary); background: var(--primary-muted); transform: scale(1.01); }
+    .dropzone.has-file { cursor: default; transform: none; background: #fafafa; padding: 16px 20px; }
+    .dropzone-icon {
+      width: 56px; height: 56px; border-radius: 16px; background: #fff;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 26px; margin: 0 auto 16px;
+      box-shadow: var(--shadow-sm); border: 1px solid var(--border);
+    }
+    .dropzone-title { font-size: 14px; font-weight: 500; color: var(--fg); margin-bottom: 4px; }
+    .dropzone-sub { font-size: 12px; color: var(--fg-muted); margin-bottom: 16px; }
+    .dropzone-sub span { color: var(--primary); font-weight: 500; cursor: pointer; }
+    .format-chips { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; }
+    .format-chip {
+      padding: 2px 8px; border-radius: 6px;
+      background: #fff; border: 1px solid var(--border);
+      font-size: 11px; font-weight: 600; color: var(--fg-muted);
+    }
+    .file-strip {
+      display: flex; align-items: center; gap: 12px;
+      background: var(--muted); border-radius: 12px; padding: 12px 16px; width: 100%;
+    }
+    .file-emoji { font-size: 24px; }
+    .file-info { flex: 1; min-width: 0; text-align: left; }
+    .file-name { font-size: 13px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .file-meta { font-size: 11px; color: var(--fg-muted); margin-top: 2px; }
+    .file-remove {
+      width: 28px; height: 28px; border-radius: 50%;
+      background: none; border: none; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      color: var(--fg-muted); font-size: 16px; transition: background .15s;
+    }
+    .file-remove:hover { background: #e2e8f0; color: var(--fg); }
+    .replace-link {
+      font-size: 11px; color: var(--fg-muted); text-align: center;
+      margin-top: 10px; cursor: pointer; display: block; transition: color .15s;
+    }
+    .replace-link:hover { color: var(--primary); }
+
+    /* ── Options accordion ── */
+    .options-toggle {
+      width: 100%; display: flex; align-items: center; justify-content: space-between;
+      padding: 11px 16px; border-radius: 12px;
+      background: var(--muted); border: 1px solid var(--border);
+      cursor: pointer; font-size: 13px; font-weight: 500;
+      color: var(--fg); transition: background .15s; margin-top: 12px;
+    }
+    .options-toggle:hover { background: #e8edf4; }
+    .chevron { font-size: 14px; color: var(--fg-muted); transition: transform .2s; }
+    .chevron.open { transform: rotate(180deg); }
+    .options-body {
+      margin-top: 6px; border: 1px solid var(--border); border-radius: 12px;
+      overflow: hidden; background: var(--card); display: none;
+    }
+    .options-body.open { display: block; }
+    .option-row {
+      padding: 12px 16px; display: flex; align-items: flex-start;
+      justify-content: space-between; gap: 12px; border-bottom: 1px solid var(--border);
+    }
+    .option-row:last-child { border-bottom: none; }
+    .option-label { font-size: 13px; font-weight: 500; color: var(--fg); }
+    .option-desc { font-size: 11px; color: var(--fg-muted); margin-top: 2px; }
+
+    /* toggle switch */
+    .switch { position: relative; width: 40px; height: 22px; flex-shrink: 0; cursor: pointer; }
+    .switch input { opacity: 0; width: 0; height: 0; position: absolute; }
+    .switch-track { position: absolute; inset: 0; border-radius: 11px; background: #cbd5e1; transition: background .2s; }
+    .switch input:checked ~ .switch-track { background: var(--primary); }
+    .switch-thumb {
+      position: absolute; top: 3px; left: 3px;
+      width: 16px; height: 16px; border-radius: 50%;
+      background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.2); transition: transform .2s;
+    }
+    .switch input:checked ~ .switch-thumb { transform: translateX(18px); }
+
+    /* slider */
+    .slider-row { padding: 12px 16px; }
+    .slider-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+    .slider-value { font-size: 14px; font-weight: 700; color: var(--primary); }
+    input[type=range] {
+      width: 100%; height: 4px; border-radius: 4px;
+      appearance: none; background: #cbd5e1; outline: none; cursor: pointer;
+    }
+    input[type=range]::-webkit-slider-thumb {
+      appearance: none; width: 16px; height: 16px; border-radius: 50%;
+      background: var(--primary); box-shadow: 0 0 0 3px rgba(99,102,241,.2);
+      cursor: pointer; transition: box-shadow .15s;
+    }
+    input[type=range]::-webkit-slider-thumb:hover { box-shadow: 0 0 0 5px rgba(99,102,241,.25); }
+    .slider-bounds { display: flex; justify-content: space-between; margin-top: 4px; font-size: 10px; color: var(--fg-subtle); }
+
+    /* ── Buttons ── */
+    .btn-row { display: flex; gap: 10px; margin-top: 16px; }
+    .btn {
+      height: 40px; border-radius: 10px; border: none; cursor: pointer;
+      font-size: 13px; font-weight: 500; display: inline-flex; align-items: center; gap: 6px;
+      padding: 0 18px; transition: opacity .15s, box-shadow .15s, background .15s;
+    }
+    .btn:disabled { opacity: .45; cursor: not-allowed; }
+    .btn-primary { background: var(--primary); color: #fff; flex: 1; justify-content: center; box-shadow: 0 2px 8px rgba(99,102,241,.3); }
+    .btn-primary:not(:disabled):hover { box-shadow: 0 4px 16px rgba(99,102,241,.4); }
+    .btn-outline { background: #fff; color: var(--fg); border: 1px solid var(--border); }
+    .btn-outline:hover { background: var(--muted); }
+    .btn-ghost { background: none; color: var(--fg-muted); border: none; }
+    .btn-ghost:hover { background: var(--muted); color: var(--fg); }
+
+    .spin { display: inline-block; animation: spin .8s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Output panel ── */
+    .output-empty {
+      flex: 1; border: 2px dashed var(--border); border-radius: 18px;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      text-align: center; padding: 48px 32px; background: var(--muted); min-height: 460px;
+    }
+    .output-empty-icon {
+      width: 48px; height: 48px; border-radius: 14px;
+      background: #fff; border: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 22px; margin-bottom: 16px; box-shadow: var(--shadow-sm);
+    }
+    .output-empty-title { font-size: 14px; font-weight: 500; color: var(--fg); margin-bottom: 6px; }
+    .output-empty-sub { font-size: 12px; color: var(--fg-muted); }
+    .output-hint { margin-top: 20px; font-size: 11px; color: var(--fg-subtle); display: flex; align-items: center; gap: 4px; }
+
+    /* quality badge */
+    .quality-row { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+    .quality-badge {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 6px 14px; border-radius: 999px; font-size: 13px; font-weight: 500;
+      border: 1px solid; cursor: help; position: relative;
+    }
+    .quality-dot { width: 8px; height: 8px; border-radius: 50%; }
+    .quality-excellent { background: #ecfdf5; color: #059669; border-color: #a7f3d0; }
+    .quality-excellent .quality-dot { background: #10b981; }
+    .quality-good { background: #fffbeb; color: #b45309; border-color: #fde68a; }
+    .quality-good .quality-dot { background: #f59e0b; }
+    .quality-low { background: #fef2f2; color: #b91c1c; border-color: #fca5a5; }
+    .quality-low .quality-dot { background: #ef4444; }
+
+    /* tooltip */
+    .tooltip-wrapper { position: relative; }
+    .tooltip-box {
+      display: none; position: absolute; top: calc(100% + 8px); left: 0;
+      width: 260px; background: var(--card); border: 1px solid var(--border);
+      border-radius: 14px; box-shadow: var(--shadow-lg); z-index: 200; overflow: hidden;
+    }
+    .tooltip-wrapper:hover .tooltip-box { display: block; }
+    .tooltip-header { padding: 10px 16px; background: var(--muted); border-bottom: 1px solid var(--border); }
+    .tooltip-header-label { font-size: 10px; font-weight: 700; color: var(--fg-muted); text-transform: uppercase; letter-spacing: .08em; }
+    .tooltip-body { padding: 10px 14px; display: flex; flex-direction: column; gap: 8px; }
+    .metric-row { display: flex; align-items: center; gap: 8px; }
+    .metric-icon { font-size: 13px; flex-shrink: 0; }
+    .metric-label { font-size: 12px; color: var(--fg-muted); flex: 1; }
+    .metric-bar-wrap { width: 72px; height: 5px; border-radius: 3px; background: var(--muted); overflow: hidden; }
+    .metric-bar { height: 100%; border-radius: 3px; }
+    .bar-green { background: #10b981; }
+    .bar-amber { background: #f59e0b; }
+    .bar-red { background: #ef4444; }
+    .metric-pct { font-size: 11px; font-weight: 600; color: var(--fg-muted); width: 30px; text-align: right; }
+
+    .stats-text { font-size: 12px; color: var(--fg-muted); display: flex; align-items: center; gap: 5px; }
+
+    /* tabs */
+    .tab-bar {
+      display: flex; align-items: center; justify-content: space-between; gap: 10px;
+      margin-bottom: 10px; flex-wrap: wrap;
+    }
+    .tabs { display: flex; background: var(--muted); border-radius: 8px; padding: 3px; gap: 2px; }
+    .tab-btn {
+      padding: 4px 14px; border-radius: 6px; border: none; background: none;
+      font-size: 12px; font-weight: 500; color: var(--fg-muted); cursor: pointer;
+      transition: background .15s, color .15s;
+    }
+    .tab-btn.active { background: #fff; color: var(--fg); box-shadow: var(--shadow-sm); }
+    .tab-actions { display: flex; gap: 6px; }
+
+    .output-content {
+      border: 1px solid var(--border); border-radius: 14px; overflow: auto;
+      max-height: 480px; background: var(--card);
+    }
+    .output-content.markdown-view { background: var(--muted); }
+
+    /* rendered preview */
+    .md-preview { padding: 20px 24px; }
+    .md-preview h1 { font-size: 22px; font-weight: 700; color: var(--fg); margin: 20px 0 12px; line-height: 1.3; }
+    .md-preview h2 { font-size: 17px; font-weight: 600; color: var(--fg); margin: 18px 0 8px; }
+    .md-preview h3 { font-size: 14px; font-weight: 600; color: #475569; margin: 14px 0 6px; }
+    .md-preview p { font-size: 13px; color: #475569; line-height: 1.7; margin-bottom: 8px; }
+    .md-preview ul { padding-left: 20px; margin: 10px 0; }
+    .md-preview ul li { font-size: 13px; color: #475569; padding: 3px 0; line-height: 1.6; }
+    .md-preview ol { padding-left: 20px; margin: 10px 0; }
+    .md-preview ol li { font-size: 13px; color: #475569; padding: 3px 0; line-height: 1.6; }
+    .md-preview blockquote { border-left: 2px solid #a5b4fc; padding: 6px 16px; margin: 12px 0; color: var(--fg-muted); font-style: italic; font-size: 13px; }
+    .md-preview hr { border: none; border-top: 1px solid var(--border); margin: 20px 0; }
+    .md-preview table { width: 100%; border-collapse: collapse; margin: 14px 0; font-size: 12px; }
+    .md-preview th { text-align: left; padding: 8px 12px; font-size: 10px; font-weight: 700; color: var(--fg-muted); text-transform: uppercase; letter-spacing: .06em; border-bottom: 1px solid var(--border); }
+    .md-preview td { padding: 8px 12px; color: #475569; border-bottom: 1px solid #f1f5f9; font-variant-numeric: tabular-nums; }
+    .md-preview tr:hover td { background: var(--muted); }
+    .md-preview code { background: var(--muted); border-radius: 4px; padding: 1px 5px; font-size: 11px; font-family: 'Menlo', 'Monaco', monospace; }
+    .md-preview pre { background: var(--muted); border-radius: 8px; padding: 12px 16px; margin: 10px 0; overflow-x: auto; }
+    .md-preview pre code { background: none; padding: 0; font-size: 11.5px; }
+
+    /* raw code */
+    .md-raw { padding: 16px 20px; font-family: 'Menlo', 'Monaco', 'Courier New', monospace; font-size: 11.5px; color: #334155; line-height: 1.7; white-space: pre-wrap; word-break: break-word; }
+
+    /* warnings */
+    .warnings-box {
+      margin-top: 10px; padding: 10px 14px; border-radius: 10px;
+      background: #fffbeb; border: 1px solid #fde68a;
+      font-size: 12px; color: #92400e; line-height: 1.6;
+      display: none;
+    }
+    .warnings-box.visible { display: block; }
+    .warnings-title { font-weight: 600; margin-bottom: 4px; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; }
+
+    /* copy confirm */
+    .copy-confirm { color: #10b981 !important; }
+
+    /* converting animation */
+    .converting-state { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 48px; }
+    .spinner-ring {
+      width: 44px; height: 44px; border-radius: 50%;
+      border: 3px solid rgba(99,102,241,.2); border-top-color: var(--primary);
+      animation: spin .8s linear infinite; margin-bottom: 16px;
+    }
+
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="header-inner">
+    <div class="logo">
+      <div class="logo-icon">⚡</div>
+      <span class="logo-text">Distill</span>
+      <span class="logo-badge">local</span>
+    </div>
+    <span class="header-tagline">Convert office documents to clean Markdown — no cloud, no account</span>
+  </div>
+</header>
+
+<main>
+  <div class="grid">
+
+    <!-- ── LEFT PANEL ── -->
+    <div>
+      <div class="panel-label">Input</div>
+
+      <div
+        class="dropzone"
+        id="dropzone"
+        ondragover="event.preventDefault(); this.classList.add('drag')"
+        ondragleave="this.classList.remove('drag')"
+        ondrop="handleDrop(event)"
+        onclick="triggerPicker(event)"
+      >
+        <div id="drop-empty">
+          <div class="dropzone-icon">☁️</div>
+          <div class="dropzone-title">Drop your file here</div>
+          <div class="dropzone-sub">or <span onclick="document.getElementById('file-input').click(); event.stopPropagation()">click to browse</span></div>
+          <div class="format-chips">
+            <span class="format-chip">DOCX</span>
+            <span class="format-chip">XLSX</span>
+            <span class="format-chip">PPTX</span>
+            <span class="format-chip">PDF</span>
+            <span class="format-chip">CSV</span>
+          </div>
+        </div>
+        <div id="drop-file" class="hidden" style="width:100%">
+          <div class="file-strip">
+            <span class="file-emoji" id="file-emoji">📄</span>
+            <div class="file-info">
+              <div class="file-name" id="file-name">—</div>
+              <div class="file-meta" id="file-meta">—</div>
+            </div>
+            <button class="file-remove" onclick="clearAll(event)" title="Remove file">✕</button>
+          </div>
+          <span class="replace-link" onclick="document.getElementById('file-input').click(); event.stopPropagation()">Replace file</span>
+        </div>
+      </div>
+      <input type="file" id="file-input" accept=".docx,.doc,.xlsx,.xls,.csv,.pptx,.ppt,.pdf" class="hidden" onchange="handleFileInput(this)" />
+
+      <button class="options-toggle" onclick="toggleOptions(this)">
+        <span>Conversion options</span>
+        <span class="chevron" id="chevron">▾</span>
+      </button>
+      <div class="options-body" id="options-body">
+        <div class="option-row">
+          <div>
+            <div class="option-label">Include Metadata</div>
+            <div class="option-desc">Prepend title, author &amp; dates as YAML</div>
+          </div>
+          <label class="switch">
+            <input type="checkbox" id="meta-toggle" checked />
+            <span class="switch-track"></span>
+            <span class="switch-thumb"></span>
+          </label>
+        </div>
+        <div class="option-row">
+          <div>
+            <div class="option-label">Enable OCR</div>
+            <div class="option-desc">For scanned or image-only PDFs (slower)</div>
+          </div>
+          <label class="switch">
+            <input type="checkbox" id="ocr-toggle" />
+            <span class="switch-track"></span>
+            <span class="switch-thumb"></span>
+          </label>
+        </div>
+        <div class="slider-row">
+          <div class="slider-header">
+            <span class="option-label">Max table rows</span>
+            <span class="slider-value" id="slider-val">500</span>
+          </div>
+          <input type="range" id="max-rows-slider" min="10" max="5000" step="10" value="500"
+            oninput="document.getElementById('slider-val').textContent = Number(this.value).toLocaleString()" />
+          <div class="slider-bounds"><span>10</span><span>5,000</span></div>
+        </div>
+      </div>
+
+      <div class="btn-row">
+        <button class="btn btn-primary" id="convert-btn" onclick="startConvert()" disabled>
+          <span>⚡</span> Convert to Markdown
+        </button>
+        <button class="btn btn-outline" onclick="clearAll(null)" id="clear-btn" disabled>Clear</button>
+      </div>
+    </div>
+
+    <!-- ── RIGHT PANEL ── -->
+    <div>
+      <div class="panel-label">Output</div>
+
+      <div class="output-empty" id="output-empty">
+        <div id="empty-state">
+          <div class="output-empty-icon">📄</div>
+          <div class="output-empty-title">No output yet</div>
+          <div class="output-empty-sub">Drop a file and click Convert to see your Markdown here</div>
+          <div class="output-hint">▸ Output will appear with quality score and download options</div>
+        </div>
+        <div id="converting-state" class="hidden converting-state">
+          <div class="spinner-ring"></div>
+          <div class="output-empty-title">Converting document…</div>
+          <div class="output-empty-sub">This usually takes a few seconds</div>
+        </div>
+      </div>
+
+      <div id="output-result" class="hidden">
+        <!-- Quality + stats -->
+        <div class="quality-row">
+          <div class="tooltip-wrapper">
+            <div class="quality-badge quality-excellent" id="quality-badge">
+              <span class="quality-dot"></span>
+              <span id="quality-text">Quality: —</span>
+              <span style="font-size:12px; opacity:.6">ⓘ</span>
+            </div>
+            <div class="tooltip-box">
+              <div class="tooltip-header">
+                <div class="tooltip-header-label">Structural Fidelity</div>
+              </div>
+              <div class="tooltip-body" id="tooltip-body">
+                <!-- populated by renderQuality() -->
+              </div>
+            </div>
+          </div>
+          <div class="stats-text" id="stats-text"></div>
+        </div>
+
+        <!-- Tab bar -->
+        <div class="tab-bar">
+          <div class="tabs">
+            <button class="tab-btn active" id="tab-preview" onclick="switchTab('preview')">Preview</button>
+            <button class="tab-btn" id="tab-markdown" onclick="switchTab('markdown')">Markdown</button>
+          </div>
+          <div class="tab-actions">
+            <button class="btn btn-ghost" id="copy-btn" onclick="copyMarkdown()" style="height:32px; font-size:12px; padding:0 10px">
+              📋 Copy
+            </button>
+            <button class="btn btn-primary" onclick="downloadMarkdown()" style="height:32px; font-size:12px; padding:0 12px; flex:none">
+              ⬇ Download .md
+            </button>
+          </div>
+        </div>
+
+        <div class="output-content" id="pane-preview">
+          <div class="md-preview" id="preview-content"></div>
+        </div>
+        <div class="output-content markdown-view hidden" id="pane-markdown">
+          <div class="md-raw" id="raw-content"></div>
+        </div>
+
+        <!-- Warnings -->
+        <div class="warnings-box" id="warnings-box">
+          <div class="warnings-title">⚠ Conversion warnings</div>
+          <div id="warnings-list"></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</main>
+
+<script>
+// ── State ─────────────────────────────────────────────────────────────────────
+const FORMAT_EMOJIS = { DOCX:'📝', DOC:'📝', XLSX:'📊', XLS:'📊', CSV:'📊', PPTX:'📋', PPT:'📋', PDF:'📄' };
+const FORMAT_NAMES  = { DOCX:'Word', DOC:'Word', XLSX:'Excel', XLS:'Excel', CSV:'CSV', PPTX:'PowerPoint', PPT:'PowerPoint', PDF:'PDF' };
+
+let currentFile     = null;
+let currentMarkdown = '';
+
+// ── File handling ─────────────────────────────────────────────────────────────
+function triggerPicker(e) {
+  if (currentFile) return;
+  document.getElementById('file-input').click();
+}
+
+function handleDrop(e) {
+  e.preventDefault();
+  document.getElementById('dropzone').classList.remove('drag');
+  const file = e.dataTransfer.files[0];
+  if (file) loadFile(file);
+}
+
+function handleFileInput(input) {
+  const file = input.files[0];
+  if (file) loadFile(file);
+}
+
+function loadFile(file) {
+  currentFile = file;
+  const ext     = (file.name.split('.').pop() || '').toUpperCase();
+  const sizeKB  = Math.round(file.size / 1024);
+  const sizeStr = sizeKB >= 1024 ? (sizeKB / 1024).toFixed(1) + ' MB' : sizeKB + ' KB';
+
+  document.getElementById('file-emoji').textContent = FORMAT_EMOJIS[ext] || '📎';
+  document.getElementById('file-name').textContent  = file.name;
+  document.getElementById('file-meta').textContent  = (FORMAT_NAMES[ext] || ext) + ' · ' + sizeStr;
+
+  const dz = document.getElementById('dropzone');
+  dz.classList.add('has-file');
+  document.getElementById('drop-empty').classList.add('hidden');
+  document.getElementById('drop-file').classList.remove('hidden');
+  document.getElementById('convert-btn').disabled = false;
+  document.getElementById('clear-btn').disabled   = false;
+  resetOutput();
+}
+
+function clearAll(e) {
+  if (e) e.stopPropagation();
+  currentFile = null;
+  currentMarkdown = '';
+  document.getElementById('file-input').value = '';
+  const dz = document.getElementById('dropzone');
+  dz.classList.remove('has-file');
+  document.getElementById('drop-empty').classList.remove('hidden');
+  document.getElementById('drop-file').classList.add('hidden');
+  document.getElementById('convert-btn').disabled = true;
+  document.getElementById('clear-btn').disabled   = true;
+  resetOutput();
+}
+
+function resetOutput() {
+  document.getElementById('output-empty').classList.remove('hidden');
+  document.getElementById('output-result').classList.add('hidden');
+  document.getElementById('empty-state').classList.remove('hidden');
+  document.getElementById('converting-state').classList.add('hidden');
+}
+
+// ── Conversion ────────────────────────────────────────────────────────────────
+async function startConvert() {
+  if (!currentFile) return;
+
+  // Show converting state
+  document.getElementById('output-empty').classList.remove('hidden');
+  document.getElementById('output-result').classList.add('hidden');
+  document.getElementById('empty-state').classList.add('hidden');
+  document.getElementById('converting-state').classList.remove('hidden');
+
+  const btn = document.getElementById('convert-btn');
+  btn.innerHTML = '<span class="spin">↻</span> Converting…';
+  btn.disabled  = true;
+
+  try {
+    const form = new FormData();
+    form.append('file',             currentFile);
+    form.append('include_metadata', document.getElementById('meta-toggle').checked);
+    form.append('max_rows',         document.getElementById('max-rows-slider').value);
+    form.append('enable_ocr',       document.getElementById('ocr-toggle').checked);
+
+    const res = await fetch('/api/convert', { method: 'POST', body: form });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: 'Conversion failed' }));
+      showError(err.detail || 'Conversion failed');
+      return;
+    }
+
+    const data = await res.json();
+    currentMarkdown = data.markdown;
+
+    renderQuality(data.quality);
+    renderStats(data.stats);
+    renderOutput(data.markdown);
+    renderWarnings(data.warnings);
+
+    document.getElementById('output-empty').classList.add('hidden');
+    document.getElementById('output-result').classList.remove('hidden');
+    switchTab('preview');
+
+  } catch (err) {
+    showError('Network error: ' + err.message);
+  } finally {
+    btn.innerHTML = '<span>⚡</span> Convert to Markdown';
+    btn.disabled  = false;
+  }
+}
+
+function showError(msg) {
+  document.getElementById('output-empty').classList.remove('hidden');
+  document.getElementById('converting-state').classList.add('hidden');
+  document.getElementById('empty-state').classList.remove('hidden');
+  document.getElementById('empty-state').innerHTML =
+    `<div class="output-empty-icon">⚠️</div>
+     <div class="output-empty-title" style="color:#b91c1c">Conversion failed</div>
+     <div class="output-empty-sub" style="color:#b91c1c;max-width:320px">${msg}</div>`;
+}
+
+// ── Render helpers ────────────────────────────────────────────────────────────
+function renderQuality(q) {
+  const pct   = Math.round((q.overall || 0) * 100);
+  const badge = document.getElementById('quality-badge');
+  badge.className = 'quality-badge ' +
+    (pct >= 85 ? 'quality-excellent' : pct >= 70 ? 'quality-good' : 'quality-low');
+  const label = pct >= 85 ? 'Excellent' : pct >= 70 ? 'Good' : 'Low';
+  document.getElementById('quality-text').textContent = `Quality: ${pct}% — ${label}`;
+
+  const metrics = [
+    { key: 'headings',   label: 'Headings' },
+    { key: 'tables',     label: 'Tables' },
+    { key: 'lists',      label: 'Lists' },
+    { key: 'efficiency', label: 'Efficiency' },
+  ];
+
+  document.getElementById('tooltip-body').innerHTML = metrics.map(m => {
+    const val  = q[m.key] !== undefined ? Math.round(q[m.key] * 100) : null;
+    if (val === null) return '';
+    const icon  = val >= 80 ? '✅' : val >= 60 ? '⚠️' : '❌';
+    const color = val >= 80 ? 'bar-green' : val >= 60 ? 'bar-amber' : 'bar-red';
+    return `<div class="metric-row">
+      <span class="metric-icon">${icon}</span>
+      <span class="metric-label">${m.label}</span>
+      <div class="metric-bar-wrap"><div class="metric-bar ${color}" style="width:${val}%"></div></div>
+      <span class="metric-pct">${val}%</span>
+    </div>`;
+  }).join('');
+}
+
+function renderStats(s) {
+  const parts = [];
+  if (s.words)  parts.push(`~${s.words.toLocaleString()} words`);
+  if (s.pages)  parts.push(`${s.pages} page${s.pages !== 1 ? 's' : ''}`);
+  else if (s.slides) parts.push(`${s.slides} slides`);
+  else if (s.sheets) parts.push(`${s.sheets} sheets`);
+  if (s.format) parts.push(s.format);
+  document.getElementById('stats-text').textContent = parts.join(' · ');
+}
+
+function renderOutput(markdown) {
+  document.getElementById('raw-content').textContent = markdown;
+  document.getElementById('preview-content').innerHTML =
+    typeof marked !== 'undefined' ? marked.parse(markdown) : '<pre>' + markdown + '</pre>';
+}
+
+function renderWarnings(warnings) {
+  const box = document.getElementById('warnings-box');
+  if (!warnings || warnings.length === 0) {
+    box.classList.remove('visible');
+    return;
+  }
+  document.getElementById('warnings-list').innerHTML =
+    warnings.map(w => `<div>· ${w}</div>`).join('');
+  box.classList.add('visible');
+}
+
+// ── Tab switching ─────────────────────────────────────────────────────────────
+function switchTab(tab) {
+  document.getElementById('tab-preview').classList.toggle('active',  tab === 'preview');
+  document.getElementById('tab-markdown').classList.toggle('active', tab === 'markdown');
+  document.getElementById('pane-preview').classList.toggle('hidden', tab !== 'preview');
+  document.getElementById('pane-markdown').classList.toggle('hidden', tab !== 'markdown');
+}
+
+// ── Copy / Download ───────────────────────────────────────────────────────────
+function copyMarkdown() {
+  if (!currentMarkdown) return;
+  navigator.clipboard.writeText(currentMarkdown).catch(() => {});
+  const btn = document.getElementById('copy-btn');
+  btn.textContent = '✓ Copied';
+  btn.classList.add('copy-confirm');
+  setTimeout(() => { btn.innerHTML = '📋 Copy'; btn.classList.remove('copy-confirm'); }, 2000);
+}
+
+function downloadMarkdown() {
+  if (!currentMarkdown) return;
+  const stem = currentFile ? currentFile.name.replace(/\.[^.]+$/, '') : 'output';
+  const blob  = new Blob([currentMarkdown], { type: 'text/markdown' });
+  const url   = URL.createObjectURL(blob);
+  const a     = document.createElement('a');
+  a.href = url; a.download = stem + '.md'; a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ── Options accordion ─────────────────────────────────────────────────────────
+function toggleOptions(btn) {
+  const body    = document.getElementById('options-body');
+  const chevron = document.getElementById('chevron');
+  const open    = body.classList.toggle('open');
+  chevron.classList.toggle('open', open);
+}
+</script>
+</body>
+</html>

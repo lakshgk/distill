@@ -5,14 +5,16 @@ build-backend = "setuptools.build_meta"
 [project]
 name        = "distill-app"
 version     = "0.1.0"
-description = "Gradio UI for the Distill document-to-Markdown converter"
+description = "Web UI for the Distill document-to-Markdown converter"
 readme      = "README.md"
 license     = { text = "MIT" }
 requires-python = ">=3.10"
 
 dependencies = [
     "distill-core>=0.1.0",
-    "gradio>=4.0",
+    "fastapi>=0.110",
+    "uvicorn[standard]>=0.29",
+    "python-multipart>=0.0.9",
 ]
 
 [project.scripts]
@@ -24,3 +26,6 @@ Repository = "https://github.com/lakshgk/distill"
 
 [tool.setuptools.packages.find]
 where = ["."]
+
+[tool.setuptools.package-data]
+distill_app = ["static/*"]
