@@ -73,6 +73,13 @@ def is_scanned_pdf(
             if isinstance(block, Paragraph):
                 for run in block.runs:
                     word_count += len(run.text.split())
+            elif isinstance(block, Table):
+                for row in block.rows:
+                    for cell in row.cells:
+                        for cell_block in cell.content:
+                            if isinstance(cell_block, Paragraph):
+                                for run in cell_block.runs:
+                                    word_count += len(run.text.split())
 
     return (word_count / page_count) < min_words_per_page
 
