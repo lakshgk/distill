@@ -1,32 +1,51 @@
 # Distill — Parser Reference
 
+This document describes how each parser works internally. It is aimed at contributors and developers who want to understand the pipeline, extend a parser, or debug a conversion.
+
+## Libraries used
+
+| Library | What it does |
+|---------|-------------|
+| **mammoth** | Converts `.docx` files to HTML, preserving headings, tables, lists, and inline formatting. Distill parses that HTML into the IR tree. |
+| **python-docx** | Reads DOCX core properties (title, author, dates, page count). Used for metadata only — mammoth handles content. |
+| **pdfplumber** | Extracts text and table bounding boxes from native (text-layer) PDFs. |
+| **openpyxl** | Reads `.xlsx` workbooks including merged cells, formula values, and sheet metadata. |
+| **python-pptx** | Reads `.pptx` presentations including slide shapes, tables, and speaker notes. |
+| **docling** | IBM layout-aware document converter used for scanned PDF OCR. Understands columns, tables, and headings from page images. Requires `pip install distill-core[ocr]`. |
+| **pytesseract + pdf2image** | Lightweight OCR fallback. Rasterises PDF pages and runs Tesseract on each image. Requires `pip install distill-core[ocr]`. |
+| **defusedxml** | Drop-in replacement for Python's `xml.etree.ElementTree` that prevents XXE (XML External Entity) injection attacks. Used wherever Distill parses XML from untrusted files. |
+
+**Acronyms**: OOXML = Office Open XML (the file format underlying `.docx`, `.xlsx`, `.pptx`). GFM = GitHub Flavored Markdown.
+
+---
+
 ## DocxParser
 
 **Module**: `distill.parsers.docx`
 **Class**: `DocxParser`
 **Extensions**: `.docx`
 **MIME type**: `application/vnd.openxmlformats-officedocument.wordprocessingml.document`
-**Required packages**: `mammoth`, `python-docx` (`docx`)
+**Required packages**: `mammoth`, `python-docx`
 **Optional packages**: `pandoc` (fallback for complex documents)
 
 ### Pipeline
 
 1. **Security checks** — input size limit (50 MB) and zip bomb limit (500 MB uncompressed).
 2. **Metadata extraction** — `python-docx` reads core properties: title, author, subject, comments (→ description), keywords, created/modified dates, word count, page count (from app properties XML).
-3. **Content extraction** — `mammoth` converts `.docx` to HTML.  `defusedxml.ElementTree` parses the HTML into the IR tree.  Heading tags `h1`–`h6` create `Section` nodes; all other block elements populate the current section's `blocks`.
+3. **Content extraction** — `mammoth` converts the `.docx` to HTML. `defusedxml.ElementTree` parses the HTML into the IR tree. Heading tags `h1`–`h6` create `Section` nodes; all other block elements populate the current section's `blocks`.
 4. **Pandoc fallback** — if mammoth yields no content and pandoc is installed, the document is converted to GFM Markdown and wrapped in a single `Section`.
 
 ### Inline formatting
 
-Mammoth preserves: **bold** (`<strong>`, `<b>`), *italic* (`<em>`, `<i>`), `code` (`<code>`), ~~strikethrough~~ (`<del>`, `<s>`), hyperlinks (`<a href>`).  Formatting propagates recursively through nested tags.
+Mammoth preserves: **bold** (`<strong>`, `<b>`), *italic* (`<em>`, `<i>`), `code` (`<code>`), ~~strikethrough~~ (`<del>`, `<s>`), hyperlinks (`<a href>`). Formatting propagates recursively through nested tags.
 
 ### Tables
 
-Tables are extracted via the HTML `<table>` element.  `<thead>` rows set `is_header=True` on their cells; `<th>` cells are also treated as headers.  `colspan` and `rowspan` are preserved.
+Tables are extracted via the HTML `<table>` element. `<thead>` rows set `is_header=True` on their cells; `<th>` cells are also treated as headers. `colspan` and `rowspan` are preserved.
 
 ### Lists
 
-`<ul>` and `<ol>` elements are converted to IR `List` nodes.  Nesting is preserved via `ListItem.children`.
+`<ul>` and `<ol>` elements are converted to IR `List` nodes. Nesting is preserved via `ListItem.children`.
 
 ### Metadata field mapping
 
@@ -53,9 +72,8 @@ Tables are extracted via the HTML `<table>` element.  `<thead>` rows set `is_hea
 
 ### Known limitations
 
-- `.doc` (legacy binary Word) requires LibreOffice — not yet implemented (Phase 2).
-- Embedded images are represented as `Image(ImageType.UNKNOWN)` with alt text only; full image extraction is Phase 2.
 - Tracked changes and revision marks are not preserved.
+- Embedded images are represented as `Image(ImageType.UNKNOWN)` with alt text only; full image extraction is not yet implemented.
 
 ---
 
@@ -65,13 +83,13 @@ Tables are extracted via the HTML `<table>` element.  `<thead>` rows set `is_hea
 **Class**: `DocLegacyParser`
 **Extensions**: `.doc`
 **MIME type**: `application/msword`
-**Required packages**: `mammoth`, `python-docx` (`docx`)
+**Required packages**: `mammoth`, `python-docx`
 **Requires**: LibreOffice headless (`libreoffice` or `soffice` on PATH, or `DISTILL_LIBREOFFICE` env var)
 
 ### Pipeline
 
-1. **LibreOffice conversion** — the `.doc` file is passed to `convert_via_libreoffice()` which runs `libreoffice --headless --convert-to docx --outdir <tmpdir> <file>`.  The converted `.docx` is written to an isolated temp directory.
-2. **Delegation** — `DocxParser.parse()` is called on the converted file.  All DocxParser behaviour (metadata, mammoth content extraction, pandoc fallback, security checks) applies unchanged.
+1. **LibreOffice conversion** — the `.doc` file is passed to `convert_via_libreoffice()` which runs `libreoffice --headless --convert-to docx --outdir <tmpdir> <file>`. The converted `.docx` is written to an isolated temp directory.
+2. **Delegation** — `DocxParser.parse()` is called on the converted file. All DocxParser behaviour (metadata, mammoth content extraction, pandoc fallback, security checks) applies unchanged.
 3. **Metadata correction** — `source_format` is set to `"doc"` and `source_path` is preserved from the original input.
 4. **Cleanup** — the temp directory is always removed in the `finally` block, whether or not parsing succeeds.
 
@@ -101,14 +119,14 @@ See `_libreoffice.py` — tries `DISTILL_LIBREOFFICE` env var, then `libreoffice
 ### Pipeline
 
 1. **Security check** — input size limit (50 MB).
-2. **Open** — `pdfplumber.open()`.  Password-protected PDFs raise `ParseError` with a clear message.
+2. **Open** — `pdfplumber.open()`. Password-protected PDFs raise `ParseError` with a clear message.
 3. **Native extraction** — for each page, tables are extracted first (with bounding boxes), then text is extracted from the body region (5%–92% of page height, excluding table bounding boxes).
-4. **Scanned PDF quality gate** — after native extraction, `is_scanned_pdf()` checks average word count per page.  If below 5 words/page, the PDF is treated as image-only.
-5. **OCR** — `ocr_pdf()` is called: tries docling first, falls back to Tesseract.  If neither backend is available, a warning is appended and the sparse native result is returned.
+4. **Scanned PDF detection** — after native extraction, `is_scanned_pdf()` checks average word count per page. If below 5 words/page, the PDF is treated as image-only and a warning is added.
+5. **OCR** — only runs if `options.extra['enable_ocr']` is `True` (default `False`). Calls `ocr_pdf()`: tries docling first, falls back to Tesseract. If neither backend is available, a `ParseError` is raised.
 
 ### Scanned PDF detection
 
-`is_scanned_pdf(document, page_count, min_words_per_page=5.0)` computes total word count across all `Paragraph` blocks divided by page count.  The threshold can be tuned via subclassing or by modifying `options.extra['min_words_per_page']` (future option — currently hardcoded at 5.0).
+`is_scanned_pdf(document, page_count, min_words_per_page=5.0)` computes total word count across all `Paragraph` and `Table` cell blocks, divided by page count. If below the threshold the PDF is flagged as image-only, but OCR only runs if explicitly enabled via `enable_ocr`.
 
 ### OCR backends
 
@@ -135,11 +153,11 @@ Tesseract language via `options.extra['ocr_lang']` (default `"eng"`).
 
 ### Header and footer suppression
 
-The body crop excludes the top 5% and bottom 8% of each page height.  Lines matching `^\s*\d+\s*$` (bare page numbers) are also filtered out.
+The body crop excludes the top 5% and bottom 8% of each page height. Lines matching `^\s*\d+\s*$` (bare page numbers) are also filtered out.
 
 ### Table extraction
 
-`pdfplumber` detects table bounding boxes before text extraction.  Tables are extracted first; their regions are then excluded from text extraction to prevent content duplication.  Rows are capped at `max_table_rows` (default 500).
+`pdfplumber` detects table bounding boxes before text extraction. Tables are extracted first; their regions are then excluded from text extraction to prevent content duplication. Rows are capped at `max_table_rows` (default 500).
 
 ### Metadata field mapping
 
@@ -157,7 +175,7 @@ The body crop excludes the top 5% and bottom 8% of each page height.  Lines matc
 
 ### PDF date format
 
-`_parse_pdf_date()` handles the PDF date string format `D:YYYYMMDDHHmmSSOHH'mm'` and converts to ISO 8601.  It accepts the standard apostrophe separator (`+05'30'`), colon separator (`+05:30`), and bare `Z` for UTC.
+`_parse_pdf_date()` handles the PDF date string format `D:YYYYMMDDHHmmSSOHH'mm'` and converts to ISO 8601. It accepts the standard apostrophe separator (`+05'30'`), colon separator (`+05:30`), and bare `Z` for UTC.
 
 ### ParseOptions support
 
@@ -165,6 +183,7 @@ The body crop excludes the top 5% and bottom 8% of each page height.  Lines matc
 |--------|--------|
 | `max_table_rows` | Caps rows extracted per table (default 500) |
 | `extra['max_file_size']` | Override input size limit (bytes) |
+| `extra['enable_ocr']` | Set `True` to enable OCR on scanned PDFs (default `False`) |
 | `extra['ocr_backend']` | Force OCR backend: `"docling"` or `"tesseract"` |
 | `extra['ocr_dpi']` | Tesseract rasterisation DPI (default 300) |
 | `extra['ocr_lang']` | Tesseract language code (default `"eng"`) |
@@ -173,9 +192,7 @@ The body crop excludes the top 5% and bottom 8% of each page height.  Lines matc
 
 - Encrypted / password-protected PDFs raise `ParseError`.
 - Complex multi-column layouts may produce out-of-order text extraction.
-- Image extraction is not yet implemented (Phase 2).
-
----
+- Image extraction is not yet implemented.
 
 ---
 
@@ -260,15 +277,13 @@ All `XlsxParser` options are also forwarded.
 
 ---
 
----
-
 ## PptxParser
 
 **Module**: `distill.parsers.pptx`
 **Class**: `PptxParser`
 **Extensions**: `.pptx`
 **MIME type**: `application/vnd.openxmlformats-officedocument.presentationml.presentation`
-**Required packages**: `pptx` (python-pptx)
+**Required packages**: `python-pptx`
 
 ### Pipeline
 
@@ -317,7 +332,7 @@ All `XlsxParser` options are also forwarded.
 **Class**: `PptLegacyParser`
 **Extensions**: `.ppt`
 **MIME type**: `application/vnd.ms-powerpoint`
-**Required packages**: `pptx` (python-pptx)
+**Required packages**: `python-pptx`
 **Requires**: LibreOffice headless (`libreoffice` or `soffice` on PATH, or `DISTILL_LIBREOFFICE` env var)
 
 ### Pipeline
@@ -343,7 +358,7 @@ All `PptxParser` options are also forwarded.
 **Class**: `GoogleDocsParser`
 **Extensions**: `.gdoc`
 **MIME type**: `application/vnd.google-apps.document`
-**Required packages**: `google-api-python-client` (`googleapiclient`), `google-auth` (`google.auth`)
+**Required packages**: `google-api-python-client`, `google-auth`
 **Install**: `pip install distill-core[google]`
 
 ### Input formats
@@ -422,8 +437,6 @@ Same pipeline as `GoogleDocsParser` but:
 
 ---
 
----
-
 ## Vision Captioning
 
 **Module**: `distill.parsers._vision`
@@ -439,7 +452,7 @@ with LLM-generated descriptions. It is called automatically by `convert()` and
 1. `options.images == "caption"`
 2. `options.vision_provider` is set to a supported provider
 
-`distill-core` remains LLM-free. Provider SDKs are imported lazily inside
+`distill-core` remains LLM-free by default. Provider SDKs are imported lazily inside
 `caption_images()`. If `distill-core[vision]` is not installed, one warning is appended
 to `doc.warnings` and the function returns silently — no error, no surprise API calls.
 
@@ -498,10 +511,3 @@ result = convert(
     ),
 )
 ```
-
----
-
-## Planned parsers (upcoming phases)
-
-| Parser | Phase | Notes |
-|--------|-------|-------|
