@@ -13,7 +13,14 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from distill_app.ui import build_ui, convert_file, quality_badge, SUPPORTED_EXTENSIONS
+from distill.quality import QualityScore
+from distill_app.ui import (
+    build_ui,
+    convert_file,
+    quality_badge,
+    show_file_info,
+    SUPPORTED_EXTENSIONS,
+)
 
 
 # ── Fixtures ─────────────────────────────────────────────────────────────────
@@ -27,15 +34,40 @@ def _mock_file(tmp_path: Path, name: str = "report.docx") -> MagicMock:
     return obj
 
 
+def _mock_qs(
+    overall: float = 0.90,
+    headings: float = 1.0,
+    tables: float = 1.0,
+    lists: float = 1.0,
+    efficiency: float = 0.80,
+) -> QualityScore:
+    return QualityScore(
+        overall               = overall,
+        heading_preservation  = headings,
+        table_preservation    = tables,
+        list_preservation     = lists,
+        token_reduction_ratio = efficiency,
+    )
+
+
 def _mock_result(
     markdown: str = "# Hello\n\nWorld.",
     quality: float = 0.90,
     warnings: list[str] | None = None,
 ) -> MagicMock:
     r = MagicMock()
-    r.markdown      = markdown
-    r.quality_score = quality
-    r.warnings      = warnings or []
+    r.markdown        = markdown
+    r.quality_score   = quality
+    r.quality_details = _mock_qs(overall=quality)
+    r.warnings        = warnings or []
+    # metadata with concrete values so _stats_html doesn't choke on MagicMock
+    m = MagicMock()
+    m.word_count    = 120
+    m.page_count    = 2
+    m.slide_count   = None
+    m.sheet_count   = None
+    m.source_format = "docx"
+    r.metadata = m
     return r
 
 
@@ -44,67 +76,132 @@ def _mock_result(
 class TestQualityBadge:
 
     def test_excellent_threshold(self):
-        badge = quality_badge(0.85)
+        badge = quality_badge(_mock_qs(0.85))
         assert "Excellent" in badge
         assert "#27ae60" in badge
 
     def test_excellent_above_threshold(self):
-        badge = quality_badge(0.99)
+        badge = quality_badge(_mock_qs(0.99))
         assert "Excellent" in badge
 
     def test_good_threshold(self):
-        badge = quality_badge(0.70)
+        badge = quality_badge(_mock_qs(0.70))
         assert "Good" in badge
         assert "#f39c12" in badge
 
     def test_good_range(self):
-        badge = quality_badge(0.77)
+        badge = quality_badge(_mock_qs(0.77))
         assert "Good" in badge
 
     def test_low_below_threshold(self):
-        badge = quality_badge(0.69)
+        badge = quality_badge(_mock_qs(0.69))
         assert "Low" in badge
         assert "#e74c3c" in badge
 
     def test_percentage_displayed(self):
-        badge = quality_badge(0.83)
+        badge = quality_badge(_mock_qs(0.83))
         assert "83%" in badge
 
-    def test_returns_html_span(self):
-        badge = quality_badge(0.9)
-        assert badge.startswith("<span")
-        assert badge.endswith("</span>")
+    def test_returns_html(self):
+        badge = quality_badge(_mock_qs(0.9))
+        assert "<div" in badge or "<span" in badge
+
+    def test_tooltip_contains_headings(self):
+        badge = quality_badge(_mock_qs(0.9, headings=1.0))
+        assert "Headings" in badge
+
+    def test_tooltip_contains_tables(self):
+        badge = quality_badge(_mock_qs(0.9, tables=0.5))
+        assert "Tables" in badge
+
+    def test_tooltip_contains_lists(self):
+        badge = quality_badge(_mock_qs(0.9, lists=0.9))
+        assert "Lists" in badge
+
+    def test_tooltip_contains_efficiency(self):
+        badge = quality_badge(_mock_qs(0.9, efficiency=0.8))
+        assert "Efficiency" in badge
+
+    def test_checkmark_for_high_metric(self):
+        badge = quality_badge(_mock_qs(0.9, headings=0.95))
+        assert "✓" in badge or "&#10003;" in badge
+
+    def test_warning_symbol_for_low_metric(self):
+        badge = quality_badge(_mock_qs(0.9, tables=0.5))
+        assert "⚠" in badge or "&#9888;" in badge
+
+    def test_float_fallback_excellent(self):
+        badge = quality_badge(0.90)
+        assert "Excellent" in badge
+        assert "#27ae60" in badge
+
+    def test_float_fallback_good(self):
+        badge = quality_badge(0.75)
+        assert "Good" in badge
+
+    def test_float_fallback_low(self):
+        badge = quality_badge(0.50)
+        assert "Low" in badge
+
+
+# ── show_file_info ────────────────────────────────────────────────────────────
+
+class TestShowFileInfo:
+
+    def test_none_returns_hidden(self):
+        upd = show_file_info(None)
+        assert upd.get("visible") is False
+
+    def test_file_returns_visible(self, tmp_path):
+        f = _mock_file(tmp_path, "report.docx")
+        upd = show_file_info(f)
+        assert upd.get("visible") is True
+
+    def test_filename_in_output(self, tmp_path):
+        f = _mock_file(tmp_path, "quarterly.docx")
+        upd = show_file_info(f)
+        assert "quarterly.docx" in upd.get("value", "")
+
+    def test_format_label_in_output(self, tmp_path):
+        f = _mock_file(tmp_path, "report.docx")
+        upd = show_file_info(f)
+        assert "Word" in upd.get("value", "")
+
+    def test_size_in_output(self, tmp_path):
+        f = _mock_file(tmp_path, "report.docx")
+        upd = show_file_info(f)
+        assert "B" in upd.get("value", "")  # KB / B / MB
 
 
 # ── convert_file — None / unsupported ────────────────────────────────────────
 
 class TestConvertFileEdgeCases:
 
-    def test_none_file_returns_four_tuple(self):
+    def test_none_file_returns_six_tuple(self):
         result = convert_file(None, True, 500)
-        assert len(result) == 4
+        assert len(result) == 6
 
     def test_none_file_empty_markdown(self):
-        md, _, _, _ = convert_file(None, True, 500)
+        md, *_ = convert_file(None, True, 500)
         assert md == ""
 
     def test_none_file_no_download(self):
-        _, _, _, dl = convert_file(None, True, 500)
+        *_, dl = convert_file(None, True, 500)
         assert dl is None
 
     def test_none_file_badge_mentions_no_file(self):
-        _, badge, _, _ = convert_file(None, True, 500)
+        _, _, badge, *_ = convert_file(None, True, 500)
         assert "No file uploaded" in badge
 
     def test_unsupported_extension_rejected(self, tmp_path):
         f = _mock_file(tmp_path, "file.xyz")
-        _, badge, _, dl = convert_file(f, True, 500)
+        _, _, badge, _, _, dl = convert_file(f, True, 500)
         assert "Unsupported" in badge
         assert dl is None
 
     def test_unsupported_extension_empty_markdown(self, tmp_path):
         f = _mock_file(tmp_path, "file.xyz")
-        md, _, _, _ = convert_file(f, True, 500)
+        md, *_ = convert_file(f, True, 500)
         assert md == ""
 
 
@@ -120,37 +217,48 @@ class TestConvertFileSuccess:
             return convert_file(f, include_fm, max_rows)
 
     def test_returns_markdown(self, tmp_path):
-        md, _, _, _ = self._convert(tmp_path, result=_mock_result(markdown="# Hi"))
+        md, *_ = self._convert(tmp_path, result=_mock_result(markdown="# Hi"))
         assert md == "# Hi"
 
+    def test_preview_matches_markdown(self, tmp_path):
+        md, preview, *_ = self._convert(tmp_path, result=_mock_result(markdown="# Hi"))
+        assert preview == md
+
     def test_returns_download_path(self, tmp_path):
-        _, _, _, dl = self._convert(tmp_path)
+        *_, dl = self._convert(tmp_path)
         assert dl is not None
         assert Path(dl).exists()
 
     def test_download_file_has_md_extension(self, tmp_path):
-        _, _, _, dl = self._convert(tmp_path)
+        *_, dl = self._convert(tmp_path)
         assert dl.endswith(".md")
 
     def test_download_filename_uses_original_stem(self, tmp_path):
-        _, _, _, dl = self._convert(tmp_path, name="quarterly_report.docx")
+        *_, dl = self._convert(tmp_path, name="quarterly_report.docx")
         assert "quarterly_report" in Path(dl).name
 
     def test_download_file_contains_markdown(self, tmp_path):
         r = _mock_result(markdown="# Report\n\nContent.")
-        _, _, _, dl = self._convert(tmp_path, result=r)
+        *_, dl = self._convert(tmp_path, result=r)
         content = Path(dl).read_text(encoding="utf-8")
         assert "# Report" in content
 
-    def test_empty_warnings_returns_empty_string(self, tmp_path):
-        _, _, warnings, _ = self._convert(tmp_path, result=_mock_result(warnings=[]))
-        assert warnings == ""
+    def test_empty_warnings_hidden(self, tmp_path):
+        _, _, _, _, warn_upd, _ = self._convert(
+            tmp_path, result=_mock_result(warnings=[])
+        )
+        assert warn_upd.get("visible") is False
 
-    def test_warnings_included_in_output(self, tmp_path):
+    def test_warnings_visible_when_present(self, tmp_path):
         r = _mock_result(warnings=["Font not found", "Page count unavailable"])
-        _, _, warnings, _ = self._convert(tmp_path, result=r)
-        assert "Font not found" in warnings
-        assert "Page count unavailable" in warnings
+        _, _, _, _, warn_upd, _ = self._convert(tmp_path, result=r)
+        assert warn_upd.get("visible") is True
+
+    def test_warnings_text_content(self, tmp_path):
+        r = _mock_result(warnings=["Font not found", "Page count unavailable"])
+        _, _, _, _, warn_upd, _ = self._convert(tmp_path, result=r)
+        assert "Font not found" in warn_upd.get("value", "")
+        assert "Page count unavailable" in warn_upd.get("value", "")
 
     def test_include_metadata_forwarded(self, tmp_path):
         f = _mock_file(tmp_path, "doc.docx")
@@ -177,7 +285,7 @@ class TestConvertFileSuccess:
     def test_all_supported_extensions_accepted(self, tmp_path, ext):
         f = _mock_file(tmp_path, f"file{ext}")
         with patch("distill.convert", return_value=_mock_result()):
-            _, badge, _, _ = convert_file(f, True, 500)
+            _, _, badge, *_ = convert_file(f, True, 500)
         assert "Unsupported" not in badge
 
 
@@ -188,7 +296,7 @@ class TestConvertFileBadge:
     def _badge_for(self, tmp_path, quality):
         f = _mock_file(tmp_path, "doc.docx")
         with patch("distill.convert", return_value=_mock_result(quality=quality)):
-            _, badge, _, _ = convert_file(f, True, 500)
+            _, _, badge, *_ = convert_file(f, True, 500)
         return badge
 
     def test_excellent(self, tmp_path):
@@ -200,6 +308,11 @@ class TestConvertFileBadge:
     def test_low(self, tmp_path):
         assert "Low" in self._badge_for(tmp_path, 0.50)
 
+    def test_badge_contains_breakdown(self, tmp_path):
+        badge = self._badge_for(tmp_path, 0.90)
+        assert "Headings" in badge
+        assert "Tables" in badge
+
 
 # ── convert_file — error handling ────────────────────────────────────────────
 
@@ -209,7 +322,7 @@ class TestConvertFileErrors:
         from distill.parsers.base import ParseError
         f = _mock_file(tmp_path, "doc.docx")
         with patch("distill.convert", side_effect=ParseError("bad zip")):
-            _, badge, _, dl = convert_file(f, True, 500)
+            _, _, badge, _, _, dl = convert_file(f, True, 500)
         assert "Conversion error" in badge
         assert "bad zip" in badge
         assert dl is None
@@ -218,13 +331,13 @@ class TestConvertFileErrors:
         from distill.parsers.base import ParseError
         f = _mock_file(tmp_path, "doc.docx")
         with patch("distill.convert", side_effect=ParseError("oops")):
-            md, _, _, _ = convert_file(f, True, 500)
+            md, *_ = convert_file(f, True, 500)
         assert md == ""
 
     def test_unexpected_error_returns_error_badge(self, tmp_path):
         f = _mock_file(tmp_path, "doc.docx")
         with patch("distill.convert", side_effect=RuntimeError("disk full")):
-            _, badge, _, dl = convert_file(f, True, 500)
+            _, _, badge, _, _, dl = convert_file(f, True, 500)
         assert "Unexpected error" in badge
         assert dl is None
 
@@ -232,7 +345,7 @@ class TestConvertFileErrors:
         f = _mock_file(tmp_path, "doc.docx")
         with patch("distill.convert", side_effect=Exception("anything")):
             result = convert_file(f, True, 500)
-        assert len(result) == 4
+        assert len(result) == 6
 
 
 # ── build_ui ─────────────────────────────────────────────────────────────────

@@ -29,17 +29,19 @@ from typing import Iterator, Optional, Union
 
 from distill.ir import Document, DocumentMetadata
 from distill.parsers.base import ParseOptions
+from distill.quality import QualityScore
 from distill.registry import registry
 
 
 @dataclass
 class ConversionResult:
     """The result of a convert() call."""
-    markdown:      str
-    quality_score: float
-    metadata:      DocumentMetadata
-    warnings:      list[str]           = field(default_factory=list)
-    ir:            Optional[Document]  = None   # populated if return_ir=True
+    markdown:        str
+    quality_score:   float
+    metadata:        DocumentMetadata
+    warnings:        list[str]              = field(default_factory=list)
+    ir:              Optional[Document]     = None   # populated if return_ir=True
+    quality_details: Optional[QualityScore] = None   # full per-metric breakdown
 
 
 def convert(
@@ -94,11 +96,12 @@ def convert(
     qs = _score(ir, markdown)
 
     return ConversionResult(
-        markdown      = markdown,
-        quality_score = qs.overall,
-        metadata      = ir.metadata,
-        warnings      = ir.warnings + qs.warnings,
-        ir            = ir if return_ir else None,
+        markdown        = markdown,
+        quality_score   = qs.overall,
+        quality_details = qs,
+        metadata        = ir.metadata,
+        warnings        = ir.warnings + qs.warnings,
+        ir              = ir if return_ir else None,
     )
 
 
@@ -159,5 +162,6 @@ __all__ = [
     "registry",
     "ConversionResult",
     "ParseOptions",
+    "QualityScore",
     "Document",
 ]
