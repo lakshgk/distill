@@ -5,10 +5,19 @@
 [![CI](https://github.com/lakshgk/distill/actions/workflows/ci.yml/badge.svg)](https://github.com/lakshgk/distill/actions)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://python.org)
+[![PyPI version](https://img.shields.io/pypi/v/distill-core.svg)](https://pypi.org/project/distill-core/)
+[![PyPI downloads](https://img.shields.io/pypi/dm/distill-core.svg)](https://pypi.org/project/distill-core/)
 
 Distill extracts semantic structure from Word, Excel, PowerPoint, PDF, and Google Workspace files and renders it as clean, token-efficient Markdown — purpose-built for LLM pipelines, RAG systems, and document search.
 
 ---
+
+## Who is this for?
+
+- **LLM and RAG pipeline builders** — feed structured Markdown instead of raw binary files into your vector store or language model. Every heading, table, and list survives the conversion.
+- **Document automation teams** — batch-process archives of Word, Excel, and PowerPoint files into a consistent, machine-readable format without writing custom parsers for each format.
+- **Developers building document search** — structured output means your search index reflects the actual shape of the document, not a flat wall of text.
+- **Anyone replacing naive extraction** — stop losing 50–70% of your token budget to formatting noise and structural loss.
 
 ## Features
 
