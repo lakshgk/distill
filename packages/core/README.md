@@ -141,36 +141,6 @@ distill/
 
 ---
 
-## Local development
-
-```bash
-# 1. Clone
-git clone https://github.com/lakshgk/distill.git
-cd distill
-
-# 2. Create a virtual environment
-python -m venv .venv
-source .venv/bin/activate        # Windows: .venv\Scripts\activate
-
-# 3. Install both packages in editable mode with all extras
-pip install -e "packages/core[dev,google,vision,ocr]"
-pip install -e packages/app
-
-# 4. Run the test suite
-pytest packages/core/tests -v
-pytest packages/app/tests -v
-
-# 5. Launch the UI
-distill-app
-# or
-python -m distill_app
-```
-
-> **Note:** `.doc`, `.xls`, and `.ppt` conversion requires [LibreOffice](https://www.libreoffice.org/download/download-libreoffice/) to be installed and on your `PATH`.
-> Scanned PDF support (`[ocr]`) requires Tesseract: `brew install tesseract` / `apt install tesseract-ocr`.
-
----
-
 ## Contributing
 
 Contributions welcome! See [CONTRIBUTING.md](docs/CONTRIBUTING.md).

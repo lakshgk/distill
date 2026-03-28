@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Optional, Union
+from typing import Iterator, Optional, Union
 
 
 # ── Enums ────────────────────────────────────────────────────────────────────
@@ -140,17 +140,20 @@ class Section:
 
 @dataclass
 class DocumentMetadata:
-    title:          Optional[str]   = None
-    author:         Optional[str]   = None
-    created_at:     Optional[str]   = None   # ISO 8601
-    modified_at:    Optional[str]   = None   # ISO 8601
-    page_count:     Optional[int]   = None
-    slide_count:    Optional[int]   = None   # PPTX
-    sheet_count:    Optional[int]   = None   # XLSX
-    word_count:     Optional[int]   = None
-    language:       Optional[str]   = None   # BCP-47 language tag e.g. "en-US"
-    source_format:  Optional[str]   = None   # e.g. "docx", "pdf", "pptx"
-    source_path:    Optional[str]   = None
+    title:          Optional[str]       = None
+    author:         Optional[str]       = None
+    created_at:     Optional[str]       = None   # ISO 8601
+    modified_at:    Optional[str]       = None   # ISO 8601
+    subject:        Optional[str]       = None
+    description:    Optional[str]       = None
+    keywords:       list[str]           = field(default_factory=list)
+    page_count:     Optional[int]       = None
+    slide_count:    Optional[int]       = None   # PPTX
+    sheet_count:    Optional[int]       = None   # XLSX
+    word_count:     Optional[int]       = None
+    language:       Optional[str]       = None   # BCP-47 language tag e.g. "en-US"
+    source_format:  Optional[str]       = None   # e.g. "docx", "pdf", "pptx"
+    source_path:    Optional[str]       = None
 
 
 # ── Root node ────────────────────────────────────────────────────────────────
@@ -170,3 +173,8 @@ class Document:
         """Convenience method: render this Document to Markdown."""
         from distill.renderer import MarkdownRenderer
         return MarkdownRenderer(**options).render(self)
+
+    def render_stream(self, **options) -> Iterator[str]:
+        """Convenience method: stream this Document as Markdown chunks."""
+        from distill.renderer import MarkdownRenderer
+        yield from MarkdownRenderer(**options).render_stream(self)

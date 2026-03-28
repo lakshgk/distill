@@ -6,7 +6,7 @@ Renders an IR Document tree to CommonMark / GFM Markdown.
 
 from __future__ import annotations
 
-from typing import Optional
+from typing import Iterator, Optional
 
 from distill.ir import (
     Alignment, Block, BlockQuote, CodeBlock, Document, Image, ImageType,
@@ -21,7 +21,8 @@ class MarkdownRenderer:
     Options
     -------
     front_matter : bool
-        Emit a YAML front-matter block with document metadata (default: True)
+        Emit a YAML front-matter block with document metadata (default: False).
+        Set to True to include metadata in the output.
     max_heading_depth : int
         Cap heading levels at this depth (default: 6)
     table_alignment : bool
@@ -32,7 +33,7 @@ class MarkdownRenderer:
 
     def __init__(
         self,
-        front_matter:      bool = True,
+        front_matter:      bool = False,
         max_heading_depth: int  = 6,
         table_alignment:   bool = True,
         image_mode:        str  = "auto",
@@ -45,17 +46,24 @@ class MarkdownRenderer:
     # ── Entry point ──────────────────────────────────────────────────────────
 
     def render(self, doc: Document) -> str:
-        parts: list[str] = []
+        return "\n\n".join(self.render_stream(doc))
 
+    def render_stream(self, doc: Document) -> Iterator[str]:
+        """Yield rendered Markdown chunks one section at a time.
+
+        If front_matter is enabled, the first yielded chunk is the YAML block.
+        Each subsequent chunk is one top-level section rendered to Markdown.
+        Empty sections are skipped.
+        """
         if self.front_matter:
             fm = self._front_matter(doc)
             if fm:
-                parts.append(fm)
+                yield fm
 
         for section in doc.sections:
-            parts.append(self._render_section(section))
-
-        return "\n\n".join(p for p in parts if p.strip())
+            rendered = self._render_section(section)
+            if rendered.strip():
+                yield rendered
 
     # ── Front matter ─────────────────────────────────────────────────────────
 
@@ -66,12 +74,25 @@ class MarkdownRenderer:
             lines.append(f"title: {m.title!r}")
         if m.author:
             lines.append(f"author: {m.author!r}")
+        if m.subject:
+            lines.append(f"subject: {m.subject!r}")
+        if m.description:
+            lines.append(f"description: {m.description!r}")
+        if m.keywords:
+            kw = ", ".join(f"{k!r}" for k in m.keywords)
+            lines.append(f"keywords: [{kw}]")
         if m.created_at:
-            lines.append(f"date: {m.created_at}")
+            lines.append(f"created: {m.created_at}")
+        if m.modified_at:
+            lines.append(f"modified: {m.modified_at}")
         if m.source_format:
             lines.append(f"source_format: {m.source_format}")
         if m.page_count is not None:
             lines.append(f"page_count: {m.page_count}")
+        if m.slide_count is not None:
+            lines.append(f"slide_count: {m.slide_count}")
+        if m.sheet_count is not None:
+            lines.append(f"sheet_count: {m.sheet_count}")
         if m.word_count is not None:
             lines.append(f"word_count: {m.word_count}")
         lines.append("---")

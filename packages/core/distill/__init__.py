@@ -25,7 +25,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional, Union
+from typing import Iterator, Optional, Union
 
 from distill.ir import Document, DocumentMetadata
 from distill.parsers.base import ParseOptions
@@ -43,23 +43,27 @@ class ConversionResult:
 
 
 def convert(
-    source:     Union[str, Path, bytes],
+    source:           Union[str, Path, bytes],
     *,
-    return_ir:  bool            = False,
-    options:    Optional[ParseOptions] = None,
+    return_ir:        bool                    = False,
+    include_metadata: bool                    = False,
+    options:          Optional[ParseOptions]  = None,
     **kwargs,
 ) -> ConversionResult:
     """
     Convert a document to Markdown in one call.
 
     Args:
-        source:    File path, Path object, or raw bytes.
-                   For Google Workspace files, pass the Drive URL and set
-                   options.extra['access_token'].
-        return_ir: If True, attach the IR Document to ConversionResult.ir.
-        options:   ParseOptions for fine-grained control.
-        **kwargs:  Shorthand for common ParseOptions fields:
-                   images, max_table_rows, image_dir, vision_provider, streaming
+        source:           File path, Path object, or raw bytes.
+                          For Google Workspace files, pass the Drive URL and set
+                          options.extra['access_token'].
+        return_ir:        If True, attach the IR Document to ConversionResult.ir.
+        include_metadata: If True, emit a YAML front-matter block with document
+                          metadata at the top of the Markdown output.
+                          Defaults to False — metadata is opt-in.
+        options:          ParseOptions for fine-grained control.
+        **kwargs:         Shorthand for common ParseOptions fields:
+                          images, max_table_rows, image_dir, vision_provider, streaming
 
     Returns:
         ConversionResult with markdown, quality_score, metadata, and warnings.
@@ -77,8 +81,13 @@ def convert(
     parser     = parser_cls()
     ir         = parser.parse(source, options)
 
+    # Vision captioning (opt-in; no-op if distill-core[vision] not installed)
+    if options.images == "caption" and options.vision_provider:
+        from distill.parsers._vision import caption_images
+        caption_images(ir, options)
+
     # Render IR → Markdown
-    markdown = ir.render()
+    markdown = ir.render(front_matter=include_metadata)
 
     # Score quality
     from distill.quality import score as _score
@@ -91,6 +100,40 @@ def convert(
         warnings      = ir.warnings + qs.warnings,
         ir            = ir if return_ir else None,
     )
+
+
+def convert_stream(
+    source:           Union[str, Path, bytes],
+    *,
+    include_metadata: bool                   = False,
+    options:          Optional[ParseOptions] = None,
+    **kwargs,
+) -> Iterator[str]:
+    """
+    Parse a document and yield Markdown chunks one section at a time.
+
+    Yields:
+        str: Rendered Markdown. If include_metadata=True, the first chunk is
+             the YAML front-matter block. Each subsequent chunk is one
+             top-level section.
+
+    Raises:
+        UnsupportedFormatError: format has no available parser
+        ParseError:             parsing failed
+    """
+    if options is None:
+        options = ParseOptions(**{k: v for k, v in kwargs.items()
+                                  if hasattr(ParseOptions, k)})
+    from distill.renderer import MarkdownRenderer
+    parser_cls = registry.find(source)
+    ir         = parser_cls().parse(source, options)
+
+    # Vision captioning (opt-in; no-op if distill-core[vision] not installed)
+    if options.images == "caption" and options.vision_provider:
+        from distill.parsers._vision import caption_images
+        caption_images(ir, options)
+
+    yield from MarkdownRenderer(front_matter=include_metadata).render_stream(ir)
 
 
 def convert_to_ir(
@@ -111,6 +154,7 @@ def convert_to_ir(
 
 __all__ = [
     "convert",
+    "convert_stream",
     "convert_to_ir",
     "registry",
     "ConversionResult",

@@ -208,3 +208,10 @@ __marimo__/
 
 # Local Claude instructions
 CLAUDE.md
+
+# Claude Code session data
+.claude/
+memory.md
+
+# Private documents
+Distill_Product_Spec.docx
