@@ -24,8 +24,8 @@ jobs:
           python-version: ${{ matrix.python-version }}
           cache: pip
 
-      - name: Install distill-core with dev + optional extras
-        run: pip install -e "packages/core[dev,google,vision]"
+      - name: Install distill-core (dev includes ocr, google, vision)
+        run: pip install -e "packages/core[dev]"
 
       - name: Run core tests
         run: pytest packages/core/tests -v --tb=short
