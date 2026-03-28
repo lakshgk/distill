@@ -150,7 +150,12 @@ def show_file_info(file_obj):
 
 # ── Conversion logic ──────────────────────────────────────────────────────────
 
-def convert_file(file_obj, include_front_matter: bool, max_rows: int):
+def convert_file(
+    file_obj,
+    include_front_matter: bool,
+    max_rows: int,
+    enable_ocr: bool = False,
+):
     """
     Convert an uploaded file to Markdown.
 
@@ -175,7 +180,10 @@ def convert_file(file_obj, include_front_matter: bool, max_rows: int):
 
     try:
         from distill import convert, ParseOptions
-        options = ParseOptions(max_table_rows=max_rows)
+        options = ParseOptions(
+            max_table_rows=max_rows,
+            extra={"enable_ocr": enable_ocr},
+        )
         result  = convert(path, include_metadata=include_front_matter, options=options)
 
         qs    = getattr(result, "quality_details", None) or result.quality_score
@@ -236,6 +244,10 @@ Supports: Word (.docx / .doc), Excel (.xlsx / .xls / .csv), PowerPoint (.pptx / 
                         label   = "Max table rows",
                         minimum = 10, maximum = 5000, value = 500, step = 10,
                     )
+                    enable_ocr = gr.Checkbox(
+                        label = "Enable OCR (for scanned / image-only PDFs)",
+                        value = False,
+                    )
                 with gr.Row():
                     convert_btn = gr.Button("Convert", variant="primary", size="lg")
                     clear_btn   = gr.Button("Clear", size="lg")
@@ -279,7 +291,7 @@ Supports: Word (.docx / .doc), Excel (.xlsx / .xls / .csv), PowerPoint (.pptx / 
 
         convert_btn.click(
             fn      = convert_file,
-            inputs  = [file_input, front_matter, max_rows],
+            inputs  = [file_input, front_matter, max_rows, enable_ocr],
             outputs = [markdown_out, preview_out, quality_badge_out,
                        stats_out, warnings_out, download_btn],
         )
@@ -301,12 +313,14 @@ Supports: Word (.docx / .doc), Excel (.xlsx / .xls / .csv), PowerPoint (.pptx / 
 
 def launch(**kwargs):
     import gradio as gr
+    import tempfile
     demo = build_ui()
     demo.launch(
-        server_name = kwargs.get("host", "127.0.0.1"),
-        server_port = kwargs.get("port", 7860),
-        share       = kwargs.get("share", False),
-        inbrowser   = kwargs.get("inbrowser", True),
-        theme       = gr.themes.Soft(primary_hue="blue"),
-        css         = ".output-markdown { font-family: monospace; font-size: 13px; }",
+        server_name   = kwargs.get("host", "127.0.0.1"),
+        server_port   = kwargs.get("port", 7860),
+        share         = kwargs.get("share", False),
+        inbrowser     = kwargs.get("inbrowser", True),
+        theme         = gr.themes.Soft(primary_hue="blue"),
+        css           = ".output-markdown { font-family: monospace; font-size: 13px; }",
+        allowed_paths = [tempfile.gettempdir()],
     )

@@ -178,30 +178,30 @@ class TestShowFileInfo:
 class TestConvertFileEdgeCases:
 
     def test_none_file_returns_six_tuple(self):
-        result = convert_file(None, True, 500)
+        result = convert_file(None, True, 500, False)
         assert len(result) == 6
 
     def test_none_file_empty_markdown(self):
-        md, *_ = convert_file(None, True, 500)
+        md, *_ = convert_file(None, True, 500, False)
         assert md == ""
 
     def test_none_file_no_download(self):
-        *_, dl = convert_file(None, True, 500)
+        *_, dl = convert_file(None, True, 500, False)
         assert dl is None
 
     def test_none_file_badge_mentions_no_file(self):
-        _, _, badge, *_ = convert_file(None, True, 500)
+        _, _, badge, *_ = convert_file(None, True, 500, False)
         assert "No file uploaded" in badge
 
     def test_unsupported_extension_rejected(self, tmp_path):
         f = _mock_file(tmp_path, "file.xyz")
-        _, _, badge, _, _, dl = convert_file(f, True, 500)
+        _, _, badge, _, _, dl = convert_file(f, True, 500, False)
         assert "Unsupported" in badge
         assert dl is None
 
     def test_unsupported_extension_empty_markdown(self, tmp_path):
         f = _mock_file(tmp_path, "file.xyz")
-        md, *_ = convert_file(f, True, 500)
+        md, *_ = convert_file(f, True, 500, False)
         assert md == ""
 
 
@@ -210,11 +210,11 @@ class TestConvertFileEdgeCases:
 class TestConvertFileSuccess:
 
     def _convert(self, tmp_path, name="report.docx", include_fm=True,
-                 max_rows=500, result=None):
+                 max_rows=500, enable_ocr=False, result=None):
         f = _mock_file(tmp_path, name)
         r = result or _mock_result()
         with patch("distill.convert", return_value=r):
-            return convert_file(f, include_fm, max_rows)
+            return convert_file(f, include_fm, max_rows, enable_ocr)
 
     def test_returns_markdown(self, tmp_path):
         md, *_ = self._convert(tmp_path, result=_mock_result(markdown="# Hi"))
@@ -263,29 +263,43 @@ class TestConvertFileSuccess:
     def test_include_metadata_forwarded(self, tmp_path):
         f = _mock_file(tmp_path, "doc.docx")
         with patch("distill.convert", return_value=_mock_result()) as mock_conv:
-            convert_file(f, True, 500)
+            convert_file(f, True, 500, False)
         _, kwargs = mock_conv.call_args
         assert kwargs.get("include_metadata") is True
 
     def test_include_metadata_false_forwarded(self, tmp_path):
         f = _mock_file(tmp_path, "doc.docx")
         with patch("distill.convert", return_value=_mock_result()) as mock_conv:
-            convert_file(f, False, 500)
+            convert_file(f, False, 500, False)
         _, kwargs = mock_conv.call_args
         assert kwargs.get("include_metadata") is False
 
     def test_max_rows_forwarded_via_options(self, tmp_path):
         f = _mock_file(tmp_path, "doc.docx")
         with patch("distill.convert", return_value=_mock_result()) as mock_conv:
-            convert_file(f, True, 123)
+            convert_file(f, True, 123, False)
         _, kwargs = mock_conv.call_args
         assert kwargs["options"].max_table_rows == 123
+
+    def test_enable_ocr_forwarded(self, tmp_path):
+        f = _mock_file(tmp_path, "doc.docx")
+        with patch("distill.convert", return_value=_mock_result()) as mock_conv:
+            convert_file(f, True, 500, True)
+        _, kwargs = mock_conv.call_args
+        assert kwargs["options"].extra.get("enable_ocr") is True
+
+    def test_ocr_disabled_by_default(self, tmp_path):
+        f = _mock_file(tmp_path, "doc.docx")
+        with patch("distill.convert", return_value=_mock_result()) as mock_conv:
+            convert_file(f, True, 500, False)
+        _, kwargs = mock_conv.call_args
+        assert kwargs["options"].extra.get("enable_ocr") is False
 
     @pytest.mark.parametrize("ext", SUPPORTED_EXTENSIONS)
     def test_all_supported_extensions_accepted(self, tmp_path, ext):
         f = _mock_file(tmp_path, f"file{ext}")
         with patch("distill.convert", return_value=_mock_result()):
-            _, _, badge, *_ = convert_file(f, True, 500)
+            _, _, badge, *_ = convert_file(f, True, 500, False)
         assert "Unsupported" not in badge
 
 
@@ -296,7 +310,7 @@ class TestConvertFileBadge:
     def _badge_for(self, tmp_path, quality):
         f = _mock_file(tmp_path, "doc.docx")
         with patch("distill.convert", return_value=_mock_result(quality=quality)):
-            _, _, badge, *_ = convert_file(f, True, 500)
+            _, _, badge, *_ = convert_file(f, True, 500, False)
         return badge
 
     def test_excellent(self, tmp_path):
@@ -322,7 +336,7 @@ class TestConvertFileErrors:
         from distill.parsers.base import ParseError
         f = _mock_file(tmp_path, "doc.docx")
         with patch("distill.convert", side_effect=ParseError("bad zip")):
-            _, _, badge, _, _, dl = convert_file(f, True, 500)
+            _, _, badge, _, _, dl = convert_file(f, True, 500, False)
         assert "Conversion error" in badge
         assert "bad zip" in badge
         assert dl is None
@@ -331,20 +345,20 @@ class TestConvertFileErrors:
         from distill.parsers.base import ParseError
         f = _mock_file(tmp_path, "doc.docx")
         with patch("distill.convert", side_effect=ParseError("oops")):
-            md, *_ = convert_file(f, True, 500)
+            md, *_ = convert_file(f, True, 500, False)
         assert md == ""
 
     def test_unexpected_error_returns_error_badge(self, tmp_path):
         f = _mock_file(tmp_path, "doc.docx")
         with patch("distill.convert", side_effect=RuntimeError("disk full")):
-            _, _, badge, _, _, dl = convert_file(f, True, 500)
+            _, _, badge, _, _, dl = convert_file(f, True, 500, False)
         assert "Unexpected error" in badge
         assert dl is None
 
     def test_error_does_not_raise(self, tmp_path):
         f = _mock_file(tmp_path, "doc.docx")
         with patch("distill.convert", side_effect=Exception("anything")):
-            result = convert_file(f, True, 500)
+            result = convert_file(f, True, 500, False)
         assert len(result) == 6
 
 

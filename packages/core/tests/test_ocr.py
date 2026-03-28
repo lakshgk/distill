@@ -703,42 +703,45 @@ class TestPdfParserOcrIntegration:
         assert isinstance(doc, Document)
 
     def test_scanned_pdf_triggers_ocr(self, tmp_path):
-        """A blank-page PDF (no text) must call ocr_pdf."""
+        """A blank-page PDF with enable_ocr=True must call ocr_pdf."""
         from distill.parsers.pdf import PdfParser
 
         src = self._make_minimal_pdf(tmp_path)
         expected_doc = Document(
             sections=[Section(blocks=[Paragraph(runs=[TextRun(text="OCR text")])])]
         )
+        opts = ParseOptions(extra={"enable_ocr": True})
 
         with patch("distill.parsers._ocr.ocr_pdf", return_value=expected_doc) as mock_ocr:
-            doc = PdfParser().parse(src)
+            doc = PdfParser().parse(src, opts)
 
         mock_ocr.assert_called_once()
         assert doc is expected_doc
 
     def test_ocr_unavailable_returns_sparse_native_with_warning(self, tmp_path):
-        """If OCR is unavailable, return the sparse native document with a warning."""
+        """If OCR fails, return the sparse native document with a warning."""
         from distill.parsers.pdf import PdfParser
 
         src = self._make_minimal_pdf(tmp_path)
+        opts = ParseOptions(extra={"enable_ocr": True})
 
         with patch("distill.parsers._ocr.ocr_pdf",
                    side_effect=ParseError("no OCR backend is available")):
-            doc = PdfParser().parse(src)
+            doc = PdfParser().parse(src, opts)
 
         assert isinstance(doc, Document)
         assert any("ocr" in w.lower() or "not available" in w.lower()
                    for w in doc.warnings)
 
     def test_ocr_options_forwarded(self, tmp_path):
-        """ParseOptions passed to PdfParser must reach ocr_pdf."""
+        """ParseOptions passed to PdfParser must reach ocr_pdf when enable_ocr=True."""
         from distill.parsers.pdf import PdfParser
 
         src = self._make_minimal_pdf(tmp_path)
         opts = ParseOptions()
+        opts.extra["enable_ocr"]  = True
         opts.extra["ocr_backend"] = "tesseract"
-        opts.extra["ocr_dpi"] = 150
+        opts.extra["ocr_dpi"]     = 150
 
         captured_opts = []
 

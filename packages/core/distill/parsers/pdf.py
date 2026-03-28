@@ -248,19 +248,24 @@ class PdfParser(Parser):
 
             # Quality gate: if native extraction yielded too few words per page,
             # the PDF is likely scanned (image-only) — route to the OCR pipeline.
+            # OCR is opt-in: callers must set options.extra['enable_ocr'] = True.
             from distill.parsers._ocr import is_scanned_pdf, ocr_pdf
 
             if is_scanned_pdf(document, page_count):
-                document.warnings.append(
-                    "Sparse text layer detected — running OCR (install "
-                    "distill-core[ocr] to enable docling / Tesseract)"
-                )
-                try:
-                    return ocr_pdf(source, options)
-                except ParseError as ocr_err:
-                    # OCR unavailable — return sparse native result with warning
-                    document.warnings.append(f"OCR not available: {ocr_err}")
-                    return document
+                if options.extra.get("enable_ocr", False):
+                    document.warnings.append(
+                        "Sparse text layer detected — running OCR pipeline"
+                    )
+                    try:
+                        return ocr_pdf(source, options)
+                    except ParseError as ocr_err:
+                        document.warnings.append(f"OCR not available: {ocr_err}")
+                        return document
+                else:
+                    document.warnings.append(
+                        "Sparse text layer detected — this PDF may be scanned. "
+                        "Enable OCR in Options for better results."
+                    )
 
             return document
 
