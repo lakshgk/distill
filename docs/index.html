@@ -3,9 +3,9 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Distill â Convert documents to clean, LLM-optimized Markdown</title>
-  <meta name="description" content="Python library that converts Word, Excel, PowerPoint, PDF, and Google Docs to clean, token-efficient Markdown â built for LLM pipelines and RAG systems." />
-  <meta property="og:title" content="Distill â Document to Markdown for LLMs" />
+  <title>Distill &mdash; Convert documents to clean, LLM-optimized Markdown</title>
+  <meta name="description" content="Python library that converts Word, Excel, PowerPoint, PDF, and Google Docs to clean, token-efficient Markdown &mdash; built for LLM pipelines and RAG systems." />
+  <meta property="og:title" content="Distill &mdash; Document to Markdown for LLMs" />
   <meta property="og:description" content="Convert Word, Excel, PowerPoint, PDF, and Google Docs to clean, token-efficient Markdown. Built for LLM pipelines and RAG systems." />
   <meta property="og:url" content="https://lakshgk.github.io/distill/" />
   <meta name="twitter:card" content="summary" />
@@ -13,15 +13,17 @@
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     :root {
-      --bg: #0d1117;
-      --surface: #161b22;
-      --border: #30363d;
-      --accent: #58a6ff;
-      --accent-dim: #1f4a7a;
-      --green: #3fb950;
-      --text: #e6edf3;
-      --muted: #8b949e;
-      --code-bg: #0d1117;
+      --bg: #ffffff;
+      --surface: #f8fafc;
+      --border: #e2e8f0;
+      --accent: #6366f1;
+      --accent-dim: #eef2ff;
+      --accent-text: #4338ca;
+      --green: #059669;
+      --green-bg: rgba(5, 150, 105, 0.1);
+      --text: #0f172a;
+      --muted: #64748b;
+      --code-bg: #f1f5f9;
       --radius: 8px;
     }
 
@@ -39,7 +41,7 @@
       position: sticky;
       top: 0;
       z-index: 100;
-      background: rgba(13, 17, 23, 0.92);
+      background: rgba(255, 255, 255, 0.92);
       backdrop-filter: blur(8px);
       border-bottom: 1px solid var(--border);
       padding: 0 2rem;
@@ -48,6 +50,7 @@
       justify-content: space-between;
       height: 56px;
     }
+
     .nav-brand {
       font-size: 1.1rem;
       font-weight: 600;
@@ -57,13 +60,16 @@
       align-items: center;
       gap: 0.4rem;
     }
+
     .nav-links { display: flex; gap: 1.5rem; }
+
     .nav-links a {
       color: var(--muted);
       text-decoration: none;
       font-size: 0.9rem;
       transition: color 0.15s;
     }
+
     .nav-links a:hover { color: var(--text); }
 
     /* HERO */
@@ -73,11 +79,12 @@
       max-width: 760px;
       margin: 0 auto;
     }
+
     .hero-badge {
       display: inline-block;
       background: var(--accent-dim);
-      color: var(--accent);
-      border: 1px solid var(--accent);
+      color: var(--accent-text);
+      border: 1px solid #c7d2fe;
       border-radius: 20px;
       padding: 0.25rem 0.9rem;
       font-size: 0.78rem;
@@ -85,6 +92,7 @@
       letter-spacing: 0.04em;
       margin-bottom: 1.5rem;
     }
+
     .hero h1 {
       font-size: clamp(2rem, 5vw, 3.2rem);
       font-weight: 700;
@@ -92,7 +100,9 @@
       letter-spacing: -0.02em;
       margin-bottom: 1.2rem;
     }
+
     .hero h1 span { color: var(--accent); }
+
     .hero p {
       font-size: 1.15rem;
       color: var(--muted);
@@ -107,6 +117,7 @@
       flex-wrap: wrap;
       margin-bottom: 2.5rem;
     }
+
     .btn {
       display: inline-flex;
       align-items: center;
@@ -119,13 +130,10 @@
       transition: opacity 0.15s, transform 0.1s;
       cursor: pointer;
     }
+
     .btn:hover { opacity: 0.85; transform: translateY(-1px); }
-    .btn-primary { background: var(--accent); color: #0d1117; }
-    .btn-secondary {
-      background: transparent;
-      border: 1px solid var(--border);
-      color: var(--text);
-    }
+    .btn-primary { background: var(--accent); color: #ffffff; }
+    .btn-secondary { background: transparent; border: 1px solid var(--border); color: var(--text); }
 
     .install-block {
       display: inline-flex;
@@ -139,7 +147,9 @@
       font-size: 0.95rem;
       color: var(--green);
     }
+
     .install-block .prompt { color: var(--muted); user-select: none; }
+
     .copy-btn {
       background: none;
       border: none;
@@ -149,6 +159,7 @@
       font-size: 0.85rem;
       transition: color 0.15s;
     }
+
     .copy-btn:hover { color: var(--text); }
 
     /* BADGES */
@@ -159,6 +170,7 @@
       flex-wrap: wrap;
       margin-top: 2rem;
     }
+
     .badges img { height: 20px; }
 
     /* STATS BAR */
@@ -170,6 +182,7 @@
       border-bottom: 1px solid var(--border);
       background: var(--surface);
     }
+
     .stat {
       flex: 1;
       max-width: 220px;
@@ -177,18 +190,22 @@
       padding: 1.5rem 1rem;
       border-right: 1px solid var(--border);
     }
+
     .stat:last-child { border-right: none; }
+
     .stat-number {
       font-size: 1.8rem;
       font-weight: 700;
       color: var(--accent);
       display: block;
     }
+
     .stat-label { font-size: 0.82rem; color: var(--muted); }
 
     /* SECTIONS */
     section { padding: 5rem 2rem; }
     .section-inner { max-width: 900px; margin: 0 auto; }
+
     .section-label {
       font-size: 0.78rem;
       font-weight: 600;
@@ -197,13 +214,19 @@
       color: var(--accent);
       margin-bottom: 0.6rem;
     }
+
     h2 {
       font-size: clamp(1.5rem, 3vw, 2rem);
       font-weight: 700;
       margin-bottom: 1rem;
       letter-spacing: -0.01em;
     }
-    .section-sub { color: var(--muted); max-width: 560px; margin-bottom: 3rem; }
+
+    .section-sub {
+      color: var(--muted);
+      max-width: 560px;
+      margin-bottom: 3rem;
+    }
 
     /* FEATURES GRID */
     .features-grid {
@@ -211,6 +234,7 @@
       grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
       gap: 1rem;
     }
+
     .feature-card {
       background: var(--surface);
       border: 1px solid var(--border);
@@ -218,39 +242,54 @@
       padding: 1.4rem;
       transition: border-color 0.2s;
     }
+
     .feature-card:hover { border-color: var(--accent); }
     .feature-icon { font-size: 1.4rem; margin-bottom: 0.7rem; }
     .feature-card h3 { font-size: 0.95rem; margin-bottom: 0.4rem; }
     .feature-card p { font-size: 0.85rem; color: var(--muted); }
 
     /* CODE EXAMPLE */
-    .code-section { background: var(--surface); }
+    .code-section { background: var(--surface); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+
     .code-cols {
       display: grid;
       grid-template-columns: 1fr 1fr;
       gap: 2rem;
       align-items: start;
     }
-    @media (max-width: 680px) { .code-cols { grid-template-columns: 1fr; } }
+
+    @media (max-width: 680px) {
+      .code-cols { grid-template-columns: 1fr; }
+    }
+
     .code-block {
       background: var(--code-bg);
       border: 1px solid var(--border);
       border-radius: var(--radius);
       overflow: hidden;
     }
+
     .code-header {
       display: flex;
       align-items: center;
       gap: 0.5rem;
       padding: 0.6rem 1rem;
       border-bottom: 1px solid var(--border);
-      background: var(--surface);
+      background: var(--bg);
     }
+
     .dot { width: 10px; height: 10px; border-radius: 50%; }
     .dot-r { background: #ff5f57; }
     .dot-y { background: #febc2e; }
     .dot-g { background: #28c840; }
-    .code-filename { font-size: 0.78rem; color: var(--muted); margin-left: auto; font-family: monospace; }
+
+    .code-filename {
+      font-size: 0.78rem;
+      color: var(--muted);
+      margin-left: auto;
+      font-family: monospace;
+    }
+
     pre {
       padding: 1.2rem;
       overflow-x: auto;
@@ -258,20 +297,18 @@
       font-size: 0.82rem;
       line-height: 1.7;
     }
-    .kw { color: #ff7b72; }
-    .fn { color: #d2a8ff; }
-    .str { color: #a5d6ff; }
+
+    .kw { color: #7c3aed; }
+    .fn { color: #6366f1; }
+    .str { color: #0369a1; }
     .cm { color: var(--muted); font-style: italic; }
     .out { color: var(--green); }
 
     /* FORMATS TABLE */
-    .formats-section {}
     .table-wrap { overflow-x: auto; }
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      font-size: 0.88rem;
-    }
+
+    table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+
     th {
       text-align: left;
       padding: 0.75rem 1rem;
@@ -282,15 +319,14 @@
       text-transform: uppercase;
       letter-spacing: 0.05em;
     }
-    td {
-      padding: 0.75rem 1rem;
-      border-bottom: 1px solid var(--border);
-    }
+
+    td { padding: 0.75rem 1rem; border-bottom: 1px solid var(--border); }
     tr:last-child td { border-bottom: none; }
     tbody tr:hover { background: var(--surface); }
+
     .reduction {
       display: inline-block;
-      background: rgba(63, 185, 80, 0.15);
+      background: var(--green-bg);
       color: var(--green);
       border-radius: 4px;
       padding: 0.1rem 0.5rem;
@@ -304,20 +340,19 @@
       grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
       gap: 1rem;
     }
+
     .audience-card {
-      background: var(--surface);
+      background: var(--bg);
       border: 1px solid var(--border);
       border-radius: var(--radius);
       padding: 1.4rem;
     }
+
     .audience-card h3 { font-size: 0.92rem; margin-bottom: 0.4rem; }
     .audience-card p { font-size: 0.83rem; color: var(--muted); }
 
     /* CTA BOTTOM */
-    .cta-section {
-      text-align: center;
-      border-top: 1px solid var(--border);
-    }
+    .cta-section { text-align: center; border-top: 1px solid var(--border); }
     .cta-section h2 { margin-bottom: 1rem; }
     .cta-section p { color: var(--muted); margin-bottom: 2rem; }
 
@@ -329,6 +364,7 @@
       font-size: 0.82rem;
       color: var(--muted);
     }
+
     footer a { color: var(--muted); text-decoration: none; }
     footer a:hover { color: var(--text); }
 
@@ -345,7 +381,7 @@
 
 <!-- NAV -->
 <nav>
-  <a class="nav-brand" href="#">âï¸ Distill</a>
+  <a class="nav-brand" href="#">&#9879;&#65039; Distill</a>
   <div class="nav-links">
     <a href="#features">Features</a>
     <a href="#quickstart">Quickstart</a>
@@ -356,25 +392,22 @@
 
 <!-- HERO -->
 <div class="hero">
-  <div class="hero-badge">Open Source Â· MIT License Â· Python 3.10+</div>
+  <div class="hero-badge">Open Source &middot; MIT License &middot; Python 3.10+</div>
   <h1>Documents to <span>clean Markdown</span>,<br>purpose-built for LLMs</h1>
-  <p>Distill extracts semantic structure from Word, Excel, PowerPoint, PDF, and Google Workspace files and renders token-efficient Markdown â built for LLM pipelines and RAG systems.</p>
-
+  <p>Distill extracts semantic structure from Word, Excel, PowerPoint, PDF, and Google Workspace files and renders token-efficient Markdown &mdash; built for LLM pipelines and RAG systems.</p>
   <div class="cta-group">
     <a href="https://github.com/lakshgk/distill" class="btn btn-primary" target="_blank">
-      â Star on GitHub
+      &#11088; Star on GitHub
     </a>
     <a href="https://github.com/lakshgk/distill#install" class="btn btn-secondary" target="_blank">
-      View docs â
+      View docs &rarr;
     </a>
   </div>
-
   <div class="install-block">
     <span class="prompt">$</span>
     <span id="install-cmd">pip install distill-core</span>
-    <button class="copy-btn" onclick="copyInstall()" title="Copy">â copy</button>
+    <button class="copy-btn" onclick="copyInstall()" title="Copy">&#10697; copy</button>
   </div>
-
   <div class="badges">
     <img src="https://github.com/lakshgk/distill/actions/workflows/ci.yml/badge.svg" alt="CI" />
     <img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License MIT" />
@@ -390,11 +423,11 @@
     <span class="stat-label">Formats supported</span>
   </div>
   <div class="stat">
-    <span class="stat-number">50â70%</span>
+    <span class="stat-number">50&ndash;70%</span>
     <span class="stat-label">Fewer tokens vs naive extraction</span>
   </div>
   <div class="stat">
-    <span class="stat-number">0â1</span>
+    <span class="stat-number">0&ndash;1</span>
     <span class="stat-label">Quality score per conversion</span>
   </div>
   <div class="stat">
@@ -408,35 +441,35 @@
   <div class="section-inner">
     <div class="section-label">Features</div>
     <h2>Everything you need to feed documents into an LLM</h2>
-    <p class="section-sub">Distill handles the hard parts â structure extraction, OCR, vision captioning, and token efficiency â so your pipeline doesn't have to.</p>
+    <p class="section-sub">Distill handles the hard parts &mdash; structure extraction, OCR, vision captioning, and token efficiency &mdash; so your pipeline doesn&rsquo;t have to.</p>
     <div class="features-grid">
       <div class="feature-card">
-        <div class="feature-icon">ð</div>
+        <div class="feature-icon">&#128196;</div>
         <h3>Structure preserved</h3>
         <p>Headings, tables, lists, bold/italic, code blocks, hyperlinks, and speaker notes all survive the conversion.</p>
       </div>
       <div class="feature-card">
-        <div class="feature-icon">ð¢</div>
+        <div class="feature-icon">&#128201;</div>
         <h3>Token-efficient output</h3>
-        <p>50â70% fewer tokens than naive extraction. Every conversion reports a quality score so you know what was preserved.</p>
+        <p>50&ndash;70% fewer tokens than naive extraction. Every conversion reports a quality score so you know what was preserved.</p>
       </div>
       <div class="feature-card">
-        <div class="feature-icon">ð</div>
+        <div class="feature-icon">&#128269;</div>
         <h3>Scanned PDF OCR</h3>
         <p>Auto-detects image-only PDFs and runs layout-aware OCR via docling or Tesseract. No manual pre-processing needed.</p>
       </div>
       <div class="feature-card">
-        <div class="feature-icon">ð¼ï¸</div>
+        <div class="feature-icon">&#128444;&#65039;</div>
         <h3>Vision captioning</h3>
         <p>Describe images embedded in documents using OpenAI, Anthropic, or Ollama. Works locally with no cloud required.</p>
       </div>
       <div class="feature-card">
-        <div class="feature-icon">â¡</div>
+        <div class="feature-icon">&#9889;</div>
         <h3>Streaming API</h3>
         <p>Yield one Markdown chunk per section for real-time LLM pipelines without buffering the whole document.</p>
       </div>
       <div class="feature-card">
-        <div class="feature-icon">ð</div>
+        <div class="feature-icon">&#127760;</div>
         <h3>Web UI + REST API</h3>
         <p>Local browser interface and POST /api/convert endpoint included. No account, no cloud, no subscription.</p>
       </div>
@@ -465,13 +498,10 @@ result = <span class="fn">convert</span>(<span class="str">"report.docx"</span>)
 
 <span class="cm"># Clean Markdown string</span>
 <span class="fn">print</span>(result.markdown)
-
-<span class="cm"># 0.0â1.0 structure quality</span>
+<span class="cm"># 0.0&ndash;1.0 structure quality</span>
 <span class="fn">print</span>(result.quality_score)
-
 <span class="cm"># Document title, author, etc.</span>
 <span class="fn">print</span>(result.metadata.title)
-
 <span class="cm"># Any conversion warnings</span>
 <span class="fn">print</span>(result.warnings)</pre>
         </div>
@@ -490,9 +520,9 @@ result = <span class="fn">convert</span>(<span class="str">"report.docx"</span>)
 <span class="kw">for</span> chunk <span class="kw">in</span> <span class="fn">convert_stream</span>(<span class="str">"report.docx"</span>):
     <span class="fn">print</span>(chunk)
 
-<span class="cm"># REST API â no Python needed</span>
+<span class="cm"># REST API &mdash; no Python needed</span>
 <span class="cm"># curl -X POST localhost:7860/api/convert \</span>
-<span class="cm">#   -F "file=@report.pdf"</span>
+<span class="cm"># -F "file=@report.pdf"</span>
 
 <span class="cm"># Web UI</span>
 <span class="out">$ distill-app</span>
@@ -508,7 +538,7 @@ result = <span class="fn">convert</span>(<span class="str">"report.docx"</span>)
   <div class="section-inner">
     <div class="section-label">Supported Formats</div>
     <h2>11 formats, one API</h2>
-    <p class="section-sub">From Office files to scanned PDFs to Google Workspace â all processed through the same structured pipeline.</p>
+    <p class="section-sub">From Office files to scanned PDFs to Google Workspace &mdash; all processed through the same structured pipeline.</p>
     <div class="table-wrap">
       <table>
         <thead>
@@ -542,20 +572,20 @@ result = <span class="fn">convert</span>(<span class="str">"report.docx"</span>)
     <p class="section-sub">If your pipeline touches documents, Distill removes the hardest part.</p>
     <div class="audience-grid">
       <div class="audience-card">
-        <h3>ð¤ LLM &amp; RAG pipeline builders</h3>
+        <h3>&#129302; LLM &amp; RAG pipeline builders</h3>
         <p>Feed structured Markdown instead of raw binary files into your vector store or language model. Every heading, table, and list survives.</p>
       </div>
       <div class="audience-card">
-        <h3>ð Document automation teams</h3>
+        <h3>&#128193; Document automation teams</h3>
         <p>Batch-process archives of Word, Excel, and PowerPoint files into consistent, machine-readable Markdown without custom parsers.</p>
       </div>
       <div class="audience-card">
-        <h3>ð Document search developers</h3>
-        <p>Structured output means your search index reflects the actual shape of the document â not a flat wall of text.</p>
+        <h3>&#128270; Document search developers</h3>
+        <p>Structured output means your search index reflects the actual shape of the document &mdash; not a flat wall of text.</p>
       </div>
       <div class="audience-card">
-        <h3>ð° Token-budget optimisers</h3>
-        <p>Stop losing 50â70% of your token budget to formatting noise. Every conversion comes with a quality score so you can verify the savings.</p>
+        <h3>&#9889; Token-budget optimisers</h3>
+        <p>Stop losing 50&ndash;70% of your token budget to formatting noise. Every conversion comes with a quality score so you can verify the savings.</p>
       </div>
     </div>
   </div>
@@ -567,7 +597,7 @@ result = <span class="fn">convert</span>(<span class="str">"report.docx"</span>)
     <h2>Start converting in minutes</h2>
     <p>Open source, MIT licensed, no cloud required. Works entirely on your machine.</p>
     <div class="cta-group">
-      <a href="https://github.com/lakshgk/distill" class="btn btn-primary" target="_blank">View on GitHub â</a>
+      <a href="https://github.com/lakshgk/distill" class="btn btn-primary" target="_blank">View on GitHub &rarr;</a>
       <a href="https://github.com/lakshgk/distill#install" class="btn btn-secondary" target="_blank">Read the docs</a>
     </div>
     <div class="install-block" style="margin: 0 auto; width: fit-content;">
@@ -580,8 +610,10 @@ result = <span class="fn">convert</span>(<span class="str">"report.docx"</span>)
 <!-- FOOTER -->
 <footer>
   <p>
-    <a href="https://github.com/lakshgk/distill" target="_blank">GitHub</a> Â·
-    <a href="https://github.com/lakshgk/distill/blob/main/LICENSE" target="_blank">MIT License</a> Â·
+    <a href="https://github.com/lakshgk/distill" target="_blank">GitHub</a>
+    &middot;
+    <a href="https://github.com/lakshgk/distill/blob/main/LICENSE" target="_blank">MIT License</a>
+    &middot;
     <a href="https://github.com/lakshgk/distill/blob/main/CONTRIBUTING.md" target="_blank">Contributing</a>
   </p>
 </footer>
@@ -590,8 +622,8 @@ result = <span class="fn">convert</span>(<span class="str">"report.docx"</span>)
   function copyInstall() {
     navigator.clipboard.writeText('pip install distill-core').then(() => {
       const btn = document.querySelector('.copy-btn');
-      btn.textContent = 'â copied';
-      setTimeout(() => btn.textContent = 'â copy', 2000);
+      btn.textContent = '\u2713 copied';
+      setTimeout(() => btn.textContent = '\u2713 copy', 2000);
     });
   }
 </script>
