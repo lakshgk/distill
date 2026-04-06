@@ -285,6 +285,63 @@ For example, scaling `worker-interactive` to 4 containers with a concurrency of
 
 ---
 
+## Local development without Docker
+
+You can run the API server and Celery workers directly on your machine without
+Docker. This requires Redis running locally.
+
+### 1. Start Redis
+
+```bash
+docker run -d --name distill-redis -p 6379:6379 redis:7-alpine
+```
+
+### 2. Install packages
+
+```bash
+pip install -e "packages/core[dev]"
+pip install -e packages/app
+```
+
+### 3. Start the API server
+
+```bash
+cd packages/app
+py -m distill_app
+# opens http://localhost:7860
+```
+
+### 4. Start Celery workers (separate terminals)
+
+**Linux / macOS:**
+
+```bash
+# Terminal — interactive worker
+celery -A distill_app.worker worker --loglevel=info --concurrency=4 \
+  --queues=distill.interactive --hostname=worker-interactive@%h
+
+# Terminal — batch worker
+celery -A distill_app.worker worker --loglevel=info --concurrency=2 \
+  --queues=distill.batch --hostname=worker-batch@%h
+```
+
+**Windows** (use `--pool=solo` — the default prefork pool has permission errors
+with billiard on Windows):
+
+```bash
+celery -A distill_app.worker worker --loglevel=info --pool=solo ^
+  --queues=distill.interactive --hostname=worker-interactive@%h
+
+celery -A distill_app.worker worker --loglevel=info --pool=solo ^
+  --queues=distill.batch --hostname=worker-batch@%h
+```
+
+> **Note:** Celery workers are only required for audio files and large documents
+> (above `DISTILL_ASYNC_SIZE_THRESHOLD_MB`, default 10 MB). All other formats
+> are converted synchronously by the API server alone.
+
+---
+
 ## Troubleshooting
 
 ### LibreOffice not found
