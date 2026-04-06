@@ -119,6 +119,6 @@ registry = ConverterRegistry()
 
 # Register all built-in parsers (import triggers @registry.register decorators)
 def _load_builtin_parsers():
-    from distill.parsers import docx, xlsx, pptx, pdf, google  # noqa: F401
+    from distill.parsers import docx, xlsx, pptx, pdf, google, epub, json_parser  # noqa: F401
 
 _load_builtin_parsers()

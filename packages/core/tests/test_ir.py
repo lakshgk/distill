@@ -107,4 +107,5 @@ class TestQuality:
         doc = Document()
         md  = ""
         qs  = score(doc, md)
-        assert qs.overall >= 0.0
+        assert qs.overall is None
+        assert qs.error is not None

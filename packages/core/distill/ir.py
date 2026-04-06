@@ -165,9 +165,10 @@ class Document:
     A Document contains a flat list of top-level Sections.
     Nesting is expressed via Section.subsections, not via Document.
     """
-    metadata:  DocumentMetadata       = field(default_factory=DocumentMetadata)
-    sections:  list[Section]          = field(default_factory=list)
-    warnings:  list[str]              = field(default_factory=list)
+    metadata:        DocumentMetadata       = field(default_factory=DocumentMetadata)
+    sections:        list[Section]          = field(default_factory=list)
+    warnings:        list[str]              = field(default_factory=list)
+    parser_outcome:  Optional[object]       = None  # set by parsers to signal non-success outcomes
 
     def render(self, **options) -> str:
         """Convenience method: render this Document to Markdown."""

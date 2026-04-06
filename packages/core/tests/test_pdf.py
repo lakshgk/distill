@@ -298,6 +298,16 @@ class TestRenderIntegration:
         assert "---" not in md
 
 
+# ── Word count ────────────────────────────────────────────────────────────────
+
+class TestWordCount:
+    def test_native_pdf_word_count_populated(self):
+        data = _make_pdf_bytes("Hello from Distill testing word count.")
+        doc = PdfParser().parse(data)
+        assert doc.metadata.word_count is not None
+        assert doc.metadata.word_count > 0
+
+
 # ── Helpers ────────────────────────────────────────────────────────────────────
 
 def _all_text(doc: Document) -> str:

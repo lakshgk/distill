@@ -166,9 +166,10 @@ def _has_formula_cache(ws) -> bool:
 class XlsxParser(Parser):
     """Parses .xlsx workbooks using openpyxl."""
 
-    extensions = [".xlsx", ".csv"]
+    extensions = [".xlsx", ".xlsm", ".csv"]
     mime_types = [
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "application/vnd.ms-excel.sheet.macroEnabled.12",
         "text/csv",
     ]
     requires          = ["openpyxl"]
@@ -188,6 +189,16 @@ class XlsxParser(Parser):
 
         if path and path.suffix.lower() == ".csv":
             return self._parse_csv(path, options)
+
+        # Emit macro-stripping warning for .xlsm files
+        if path and path.suffix.lower() == ".xlsm":
+            if options and options.collector:
+                from distill.warnings import ConversionWarning, WarningType
+                options.collector.add(ConversionWarning(
+                    type=WarningType.CONTENT_EXTRACTED,
+                    message="XLSM macro-enabled workbook: macros are not executed "
+                            "and have been stripped. Data and sheet structure are preserved.",
+                ))
 
         max_file  = options.extra.get("max_file_size",  _MAX_FILE_BYTES)
         max_unzip = options.extra.get("max_unzip_size", _MAX_UNZIP_BYTES)
@@ -218,6 +229,22 @@ class XlsxParser(Parser):
         sheet_count = len(wb.sheetnames)
         metadata    = _extract_metadata(wb, path, sheet_count)
         document    = Document(metadata=metadata)
+
+        # Capture source word count before IR mapping
+        try:
+            total_words = 0
+            max_rows = options.max_table_rows
+            for ws_name in wb.sheetnames:
+                ws = wb[ws_name]
+                for row_idx, row in enumerate(ws.iter_rows()):
+                    if max_rows > 0 and row_idx >= max_rows:
+                        break
+                    for cell in row:
+                        if cell.value is not None:
+                            total_words += len(str(cell.value).split())
+            document.metadata.word_count = total_words or None
+        except Exception:
+            pass
 
         for sheet_name in wb.sheetnames:
             ws = wb[sheet_name]

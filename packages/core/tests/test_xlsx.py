@@ -284,6 +284,124 @@ class TestMergedCells:
         assert result[(1, 2)] == "Merged"
         assert (1, 3) not in result
 
+    def test_row_span_repeats_anchor_across_rows(self):
+        """A cell merged across 3 rows repeats the anchor value in all 3 output rows."""
+        fixture = Path(__file__).parent / "fixtures" / "merged_cells.xlsx"
+        doc = XlsxParser().parse(fixture)
+        tbls = _tables(doc)
+        assert len(tbls) == 1
+        # Rows 1-3 (data rows after the header) should all have "North" in column 0
+        data_rows = tbls[0].rows[1:]  # skip header
+        col0_values = [row.cells[0].content[0].text for row in data_rows]
+        assert col0_values == ["North", "North", "North"]
+
+    def test_col_span_repeats_anchor_across_columns(self):
+        """A cell merged across 2 columns repeats the anchor value in both output columns."""
+        import openpyxl
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "ColMerge"
+        ws["A1"] = "Header"
+        ws["B1"] = "H2"
+        ws["C1"] = "H3"
+        ws["A2"] = "Span"
+        ws["C2"] = "Solo"
+        ws.merge_cells("A2:B2")
+        ws.append(["x", "y", "z"])
+
+        buf = io.BytesIO()
+        wb.save(buf)
+        doc = XlsxParser().parse(buf.getvalue())
+        tbls = _tables(doc)
+        row1_texts = [c.content[0].text for c in tbls[0].rows[1].cells]
+        assert row1_texts[0] == "Span"
+        assert row1_texts[1] == "Span"
+        assert row1_texts[2] == "Solo"
+
+    def test_no_merged_cells_unchanged(self):
+        """A workbook with no merged cells produces correct output (regression guard)."""
+        fixture = Path(__file__).parent / "fixtures" / "merged_cells.xlsx"
+        # Build a plain workbook with identical data but no merges
+        plain = _make_xlsx(sheets={"Sales": [
+            ["Region", "Q1", "Q2"],
+            ["North", "12", "14"],
+            ["North", "8", "9"],
+            ["North", "5", "6"],
+        ]})
+        doc_plain = XlsxParser().parse(plain)
+        doc_fixture = XlsxParser().parse(fixture)
+        # Both should produce tables with the same cell texts
+        plain_texts = _cell_texts(_tables(doc_plain)[0])
+        fixture_texts = _cell_texts(_tables(doc_fixture)[0])
+        assert plain_texts == fixture_texts
+
+    def test_none_anchor_yields_empty_string(self):
+        """A merged cell whose anchor value is None outputs an empty string, not 'None'."""
+        import openpyxl
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "NoneAnchor"
+        ws["A1"] = "H1"
+        ws["B1"] = "H2"
+        # A2 is left as None, then merged across A2:A3
+        ws["B2"] = "val1"
+        ws["B3"] = "val2"
+        ws.merge_cells("A2:A3")
+
+        buf = io.BytesIO()
+        wb.save(buf)
+        doc = XlsxParser().parse(buf.getvalue())
+        tbls = _tables(doc)
+        # Both data rows should have empty string in column 0
+        for row in tbls[0].rows[1:]:
+            text = row.cells[0].content[0].text
+            assert text == "", f"Expected empty string, got {text!r}"
+
+    def test_merge_fix_applies_to_all_sheets(self):
+        """The merge fix applies to every worksheet, not just the first."""
+        import openpyxl
+        wb = openpyxl.Workbook()
+        # Sheet 1 — merge in column A rows 2-3
+        ws1 = wb.active
+        ws1.title = "Sheet1"
+        ws1["A1"] = "Key"
+        ws1["B1"] = "Val"
+        ws1["A2"] = "Alpha"
+        ws1["B2"] = "1"
+        ws1["B3"] = "2"
+        ws1.merge_cells("A2:A3")
+
+        # Sheet 2 — merge in column A rows 2-3
+        ws2 = wb.create_sheet("Sheet2")
+        ws2["A1"] = "Key"
+        ws2["B1"] = "Val"
+        ws2["A2"] = "Beta"
+        ws2["B2"] = "3"
+        ws2["B3"] = "4"
+        ws2.merge_cells("A2:A3")
+
+        buf = io.BytesIO()
+        wb.save(buf)
+        doc = XlsxParser().parse(buf.getvalue())
+
+        for section in doc.sections:
+            tbl = [b for b in section.blocks if isinstance(b, Table)][0]
+            col0 = [row.cells[0].content[0].text for row in tbl.rows[1:]]
+            expected = section.heading[0].text.replace("Sheet1", "Alpha").replace("Sheet2", "Beta")
+            assert col0 == [expected, expected], (
+                f"Sheet {section.heading[0].text}: expected [{expected!r}, {expected!r}], got {col0}"
+            )
+
+
+# ── Word count ────────────────────────────────────────────────────────────────
+
+class TestWordCount:
+    def test_word_count_populated(self):
+        fixture = Path(__file__).parent / "fixtures" / "merged_cells.xlsx"
+        doc = XlsxParser().parse(fixture)
+        assert doc.metadata.word_count is not None
+        assert doc.metadata.word_count > 0
+
 
 # ── Empty column trimming ─────────────────────────────────────────────────────
 
@@ -467,3 +585,51 @@ class TestRenderIntegration:
         doc  = XlsxParser().parse(data)
         md   = doc.render(front_matter=False)
         assert "|" in md
+
+
+# ── XLSM support ─────────────────────────────────────────────────────────────
+
+class TestXlsmSupport:
+    XLSM_FIXTURE = Path(__file__).parent / "fixtures" / "simple.xlsm"
+
+    def test_registry_finds_xlsm(self):
+        from distill.registry import registry
+        entry = registry.find("test.xlsm")
+        assert entry is not None
+
+    def test_xlsm_routes_to_xlsx_parser(self):
+        from distill.registry import registry
+        xlsm = registry.find("test.xlsm")
+        xlsx = registry.find("test.xlsx")
+        assert xlsm == xlsx
+
+    def test_xlsm_mime_type_accepted(self):
+        assert "application/vnd.ms-excel.sheet.macroEnabled.12" in XlsxParser.mime_types
+
+    def test_xlsm_produces_document_with_sections(self):
+        from distill.parsers.base import ParseOptions
+        from distill.warnings import WarningCollector
+        opts = ParseOptions()
+        opts.collector = WarningCollector()
+        doc = XlsxParser().parse(self.XLSM_FIXTURE, options=opts)
+        assert len(doc.sections) >= 1
+
+    def test_xlsm_emits_macro_warning(self):
+        from distill.parsers.base import ParseOptions
+        from distill.warnings import WarningCollector
+        opts = ParseOptions()
+        opts.collector = WarningCollector()
+        XlsxParser().parse(self.XLSM_FIXTURE, options=opts)
+        warnings = opts.collector.to_dict()
+        assert len(warnings) >= 1
+        assert any("macro" in w["message"].lower() for w in warnings)
+
+    def test_xlsx_does_not_emit_macro_warning(self):
+        from distill.parsers.base import ParseOptions
+        from distill.warnings import WarningCollector
+        opts = ParseOptions()
+        opts.collector = WarningCollector()
+        data = _make_xlsx()
+        XlsxParser().parse(data, options=opts)
+        warnings = opts.collector.to_dict()
+        assert not any("macro" in w.get("message", "").lower() for w in warnings)

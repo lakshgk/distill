@@ -152,7 +152,13 @@ def _caption_via_openai(
     import openai  # noqa: PLC0415
 
     api_key = options.vision_api_key or options.extra.get("openai_api_key")
-    client  = openai.OpenAI(api_key=api_key) if api_key else openai.OpenAI()
+    if not api_key:
+        try:
+            from distill_app import settings as _settings
+            api_key = _settings.VISION_API_KEY or None
+        except ImportError:
+            pass
+    client = openai.OpenAI(api_key=api_key) if api_key else openai.OpenAI()
 
     for img in images:
         try:
@@ -187,7 +193,13 @@ def _caption_via_anthropic(
     import anthropic as anthropic_sdk  # noqa: PLC0415
 
     api_key = options.vision_api_key or options.extra.get("anthropic_api_key")
-    client  = (
+    if not api_key:
+        try:
+            from distill_app import settings as _settings
+            api_key = _settings.VISION_API_KEY or None
+        except ImportError:
+            pass
+    client = (
         anthropic_sdk.Anthropic(api_key=api_key)
         if api_key
         else anthropic_sdk.Anthropic()
