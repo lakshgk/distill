@@ -14,6 +14,8 @@ This document describes how each parser works internally. It is aimed at contrib
 | **docling** | IBM layout-aware document converter used for scanned PDF OCR. Understands columns, tables, and headings from page images. Requires `pip install distill-core[ocr]`. |
 | **pytesseract + pdf2image** | Lightweight OCR fallback. Rasterises PDF pages and runs Tesseract on each image. Requires `pip install distill-core[ocr]`. |
 | **defusedxml** | Drop-in replacement for Python's `xml.etree.ElementTree` that prevents XXE (XML External Entity) injection attacks. Used wherever Distill parses XML from untrusted files. |
+| **ebooklib** | Reads `.epub` archives — used for EPUB metadata extraction. Content XHTML is parsed by the existing `HTMLParser`. Requires `pip install distill-core[epub]`. |
+| **sqlparse** | Tokenises and splits SQL DDL/DML statements for the SQL schema parser. Requires `pip install distill-core[sql]`. |
 
 **Acronyms**: OOXML = Office Open XML (the file format underlying `.docx`, `.xlsx`, `.pptx`). GFM = GitHub Flavored Markdown.
 
@@ -104,6 +106,29 @@ All `DocxParser` options (`max_table_rows`, `extra['max_file_size']`, `extra['ma
 ### LibreOffice detection
 
 See `_libreoffice.py` — tries `DISTILL_LIBREOFFICE` env var, then `libreoffice`, `soffice`, and several well-known absolute paths on Linux, macOS, and Windows.
+
+---
+
+## OdtParser
+
+**Module**: `distill.parsers.docx`
+**Class**: `OdtParser`
+**Extensions**: `.odt`
+**MIME type**: `application/vnd.oasis.opendocument.text`
+**Required packages**: `mammoth`, `python-docx`
+**Requires**: LibreOffice headless
+
+### Pipeline
+
+1. **LibreOffice conversion** — `.odt` → `.docx` via `convert_via_libreoffice()`.
+2. **Delegation** — `DocxParser.parse()` processes the converted `.docx`.
+3. **Metadata correction** — `source_format` set to `"odt"`.
+4. **Warning** — a `CONTENT_EXTRACTED` warning is always emitted: "ODT converted
+   via LibreOffice — complex formatting may not round-trip perfectly".
+5. **Cleanup** — temp directory removed in `finally` block.
+
+Identical pipeline to `DocLegacyParser` (.doc) — LibreOffice's `--convert-to docx`
+command handles both `.doc` and `.odt` transparently.
 
 ---
 
@@ -200,8 +225,8 @@ The body crop excludes the top 5% and bottom 8% of each page height. Lines match
 
 **Module**: `distill.parsers.xlsx`
 **Class**: `XlsxParser`
-**Extensions**: `.xlsx`, `.csv`
-**MIME types**: `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`, `text/csv`
+**Extensions**: `.xlsx`, `.xlsm`, `.csv`
+**MIME types**: `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`, `application/vnd.ms-excel.sheet.macroEnabled.12`, `text/csv`
 **Required packages**: `openpyxl`
 
 ### Pipeline
@@ -231,6 +256,14 @@ If formula cells are present but have no cached value (workbook was created prog
 | `modified_at` | `wb.properties.modified` (datetime → ISO 8601) |
 | `sheet_count` | `len(wb.sheetnames)` |
 | `source_format` | `"xlsx"` or `"csv"` |
+
+### XLSM support
+
+`.xlsm` (macro-enabled Excel workbook) is handled identically to `.xlsx`.
+`openpyxl` reads the data and sheet structure; macros stored in the ZIP archive
+are never executed and are silently ignored. A `CONTENT_EXTRACTED` warning is
+always emitted for `.xlsm` input: "XLSM macro-enabled workbook: macros are not
+executed and have been stripped. Data and sheet structure are preserved."
 
 ### CSV path
 
@@ -511,3 +544,335 @@ result = convert(
     ),
 )
 ```
+
+---
+
+## HTMLParser
+
+**Module**: `distill.parsers.html`
+**Class**: `HTMLParser`
+**Extensions**: `.html`, `.htm`
+**MIME type**: `text/html`
+**Required packages**: none (stdlib `html.parser` is sufficient)
+**Optional packages**: `trafilatura`, `readability-lxml` (install with `pip install distill-core[html]` to enable boilerplate removal)
+
+### Pipeline
+
+1. **Source loading** — reads bytes, file path, or raw string. Bytes are decoded as UTF-8 (with `errors="replace"`).
+2. **Content extraction** (opt-in) — when `options.extra['extract_content']` is `True`, `HTMLContentExtractor` strips navigation, footers, and ads using trafilatura first, then readability-lxml as fallback. If both fail, raw HTML is used and a `content_extracted` warning is emitted.
+3. **DOM parsing** — lxml is used if installed; stdlib `ElementTree` with entity normalisation is the fallback.
+4. **IR mapping** — the DOM is walked depth-first. Heading tags create `Section` nodes; all other block elements populate the current section's `blocks`. Unknown tags have their text extracted as `Paragraph` nodes — the parser never raises on unexpected input.
+
+### Tag mapping
+
+| HTML tag | IR node |
+|----------|---------|
+| `h1`–`h6` | `Section` (level 1–6) |
+| `p` | `Paragraph` |
+| `ul` / `ol` | `List` (ordered/unordered, up to 3 levels of nesting) |
+| `table` | `Table` (`<thead>` or first row → header cells) |
+| `pre` / `code` | `CodeBlock` |
+| `img` | `Image(ImageType.UNKNOWN, alt_text=…)` |
+| `div`, `article`, `main`, `section`, `body`, `html` | transparent — children are processed recursively |
+| `script`, `style`, `meta`, `link`, `head` | suppressed |
+| all other tags | text extracted as `Paragraph` |
+
+### Inline formatting
+
+`<strong>`/`<b>` → `bold`, `<em>`/`<i>` → `italic`, `<code>` → `code`, `<del>`/`<s>`/`<strike>` → `strikethrough`, `<a href>` → `href`. Formatting propagates recursively through nested tags.
+
+### Table header detection
+
+If a `<thead>` element is present, its cells are marked `is_header=True`. If no `<thead>` is present, the first row's cells are treated as headers.
+
+### Content extraction flag
+
+| `extra['extract_content']` | Behaviour |
+|---------------------------|-----------|
+| `False` (default) | Raw HTML is parsed as-is |
+| `True` | trafilatura → readability-lxml → raw HTML fallback |
+
+Set via `ParseOptions(extract_content=True)` (stored in `ParseOptions.extract_content`) or via `ParseOptions(extra={"extract_content": True})`. The parser reads from `options.extra`.
+
+### Warnings emitted
+
+| Warning | Trigger |
+|---------|---------|
+| `content_extracted` | `extract_content=True` and both trafilatura and readability-lxml failed or are not installed |
+
+### Page behaviour
+
+HTML input has no concept of pages. `page_count` is not set in `DocumentMetadata`. `paginate_output` is silently ignored.
+
+### Metadata
+
+| IR field | Value |
+|----------|-------|
+| `source_format` | `"html"` |
+| all other fields | not populated (HTML has no standard metadata) |
+
+### ParseOptions support
+
+| Option | Effect |
+|--------|--------|
+| `extra['extract_content']` | `True` to strip boilerplate before parsing (default `False`) |
+
+### Known limitations
+
+- `<meta>` tag metadata (title, author, description) is not extracted.
+- Image `src` paths are not resolved; `Image.path` is always `None`.
+- Streaming (`convert_stream`) is not supported for HTML input.
+
+---
+
+## AudioParser
+
+Transcribes audio files and produces structured Markdown with timestamps and
+optional speaker labels.
+
+### Supported formats
+
+| Extension | MIME type |
+|-----------|----------|
+| `.mp3` | `audio/mpeg` |
+| `.wav` | `audio/wav` |
+| `.m4a` | `audio/mp4` |
+| `.flac` | `audio/flac` |
+| `.ogg` | `audio/ogg` |
+
+### Installation
+
+```bash
+pip install distill-core[audio]
+```
+
+This installs `faster-whisper`, `vosk`, `pyannote.audio`, `librosa`,
+`soundfile`, and `pydub`.
+
+### Hugging Face setup (for speaker diarization)
+
+1. Create a free account at https://huggingface.co
+2. Accept the model licence at https://huggingface.co/pyannote/speaker-diarization-3.1
+3. Generate an access token at https://huggingface.co/settings/tokens
+4. Set `DISTILL_HF_TOKEN` in `.env` or container environment
+
+### ParseOptions fields
+
+| Field | Default | Description |
+|-------|---------|-------------|
+| `transcription_engine` | `"whisper"` | Transcription backend: `whisper` or `vosk` |
+| `whisper_model` | `"base"` | Whisper model size: `tiny`, `base`, `small`, `medium`, `large-v3` |
+| `hf_token` | `None` | Hugging Face token for pyannote (per-request override) |
+
+### Format compatibility
+
+`soundfile`/`librosa` cannot inspect metadata for all container formats
+(notably `.m4a`/AAC). When metadata inspection fails, an `AUDIO_QUALITY_LOW`
+warning is emitted but transcription proceeds normally — `faster-whisper`
+handles `.m4a` natively via its FFmpeg-based audio decoder.
+
+The UI exposes a **Whisper Model** dropdown (visible only for audio files)
+allowing users to choose between speed and quality. The `base` model is
+selected by default.
+
+### Warnings emitted
+
+| Warning type | Condition |
+|-------------|-----------|
+| `AUDIO_QUALITY_LOW` | Bitrate <32 kbps, duration >4 hours, telephone-quality audio, or metadata unreadable |
+| `AUDIO_MODEL_MISSING` | pyannote model unavailable; speaker labels omitted |
+
+### Output format support
+
+Audio input supports `markdown` and `chunks` output formats only. Requests
+with `output_format=json` or `output_format=html` return HTTP 422.
+
+### Topic Segmentation
+
+After transcription and diarization, an optional LLM pass groups speaker turns
+into named topic sections.
+
+**How to enable:** set `topic_segmentation=true` form field along with
+`llm_api_key` and `llm_model` (or configure `DISTILL_LLM_API_KEY` and
+`DISTILL_LLM_MODEL` as env vars).
+
+**What changes in the output:** `##` topic headings group the transcript into
+semantic sections. Each topic section becomes a chunk with the topic name in
+`heading_path` when using `output_format=chunks`.
+
+**Fallback:** if the LLM is unavailable or returns unparseable responses, the
+transcript is returned without topic sections. Transcription and diarization
+results are never lost.
+
+### Async requirement
+
+Audio is always processed asynchronously via the Celery worker queue. If Redis
+is unavailable, the API returns HTTP 503. Audio files are never processed
+synchronously regardless of file size.
+
+On Windows, start the Celery worker with `--pool=solo` to avoid `billiard`
+permission errors:
+
+```bash
+celery -A distill_app.worker worker --loglevel=info --pool=solo -Q conversions
+```
+
+---
+
+## EPUBParser
+
+**Module**: `distill.parsers.epub`
+**Class**: `EPUBParser`
+**Extensions**: `.epub`
+**MIME type**: `application/epub+zip`
+**Required packages**: `ebooklib >= 0.18`
+
+### Installation
+
+```bash
+pip install "distill-core[epub]"
+```
+
+### How it works
+
+An `.epub` file is a ZIP archive containing XHTML content files, a CSS
+stylesheet, images, and an OPF manifest (`content.opf`) that defines the
+reading order.
+
+1. The parser opens the ZIP and reads `META-INF/container.xml` (via
+   `defusedxml`) to locate the OPF manifest file.
+2. The OPF manifest provides Dublin Core metadata (title, author, language)
+   and a spine element that defines the reading order of content files.
+3. Each spine item (XHTML file) is extracted from the ZIP and passed through
+   `HTMLParser.parse()`, which handles headings, tables, lists, and
+   inline formatting.
+4. Sections from all spine items are appended to a master `Document` in
+   spine order.
+
+### IR mapping
+
+| EPUB element | IR mapping |
+|---|---|
+| OPF `<dc:title>` | `DocumentMetadata.title` |
+| OPF `<dc:creator>` | `DocumentMetadata.author` |
+| OPF `<dc:language>` | `DocumentMetadata.language` |
+| Each spine item (XHTML file) | Routed through `HTMLParser.parse()` |
+| Images | Alt text preserved; image files not extracted |
+
+### Word count
+
+Sum of word counts across all spine items (computed by `HTMLParser`).
+
+---
+
+## WSDLParser
+
+**Module**: `distill.parsers.wsdl`
+**Class**: `WSDLParser`
+**Extensions**: `.wsdl`, `.wsd`
+**MIME type**: `application/wsdl+xml`
+**Required packages**: None — uses `defusedxml` (already in stack)
+
+### How it works
+
+WSDL (Web Services Description Language) files are XML documents describing
+SOAP web services. The parser handles both WSDL 1.1
+(`http://schemas.xmlsoap.org/wsdl/`) and WSDL 2.0
+(`http://www.w3.org/ns/wsdl`) by detecting the root element namespace.
+
+Parse order: types, messages, portTypes/interfaces, bindings, services.
+
+### IR mapping
+
+| WSDL element | IR mapping |
+|---|---|
+| `<wsdl:service>` | Section level 1 |
+| `<wsdl:portType>` | Section level 2 |
+| `<wsdl:operation>` | Section level 3 |
+| `<wsdl:input>` / `<wsdl:output>` | Paragraph (message name and type) |
+| `<wsdl:message>` parts | Table (part name, type columns) |
+| `<wsdl:types>` XSD elements | Section level 2 with Table of fields |
+| `<wsdl:documentation>` | Paragraph |
+| `<wsdl:binding>` | Section level 2 |
+
+### Word count
+
+Sum of all visible text content across documentation and type definition
+elements, split by whitespace.
+
+---
+
+## JSONParser
+
+**Module**: `distill.parsers.json_parser`
+**Class**: `JSONParser`
+**Extensions**: `.json`
+**MIME type**: `application/json`
+**Required packages**: None — stdlib `json` only
+
+### How it works
+
+The parser auto-detects the JSON structure and routes to the appropriate
+renderer:
+
+| Type | Detection | Rendering |
+|------|-----------|-----------|
+| **JSON Schema** | `$schema` key, or `properties` + `type`, or `$defs`/`definitions` | Sections + property Tables |
+| **API dump** | Array of dicts (all items are dicts) | Single Table (keys as headers) |
+| **Flat object** | Dict with only scalar values | Two-column key/value Table |
+| **Code fallback** | Everything else | Fenced `json` CodeBlock |
+
+Schema rendering extracts `title` and `description` into metadata. Each
+`properties` object becomes a Table with name, type, required, and
+description columns. `$defs`/`definitions` entries become level-2 Sections.
+Max recursion depth is 4.
+
+Array dumps are capped at `max_table_rows` (default 500). A
+`TABLE_TRUNCATED` warning is emitted when truncated.
+
+### Word count
+
+Sum of all string leaf values in the JSON structure, split by whitespace.
+
+---
+
+## SQLParser
+
+**Module**: `distill.parsers.sql`
+**Class**: `SQLParser`
+**Extensions**: `.sql`
+**MIME type**: `application/sql`
+**Required packages**: `sqlparse >= 0.5`
+
+### Installation
+
+```bash
+pip install "distill-core[sql]"
+```
+
+### How it works
+
+The parser uses `sqlparse` to tokenise and split SQL into individual
+statements. DDL statements (`CREATE TABLE`, `CREATE VIEW`, etc.) are
+rendered as structured Markdown. DML statements (`SELECT`, `INSERT`, etc.)
+are rendered as fenced SQL code blocks.
+
+**The parser does not execute any SQL.**
+
+### IR mapping
+
+| SQL element | IR mapping |
+|---|---|
+| `CREATE TABLE name` | Section level 1 with table name heading |
+| Column definitions | Table (name, type, constraints, nullable, default) |
+| `PRIMARY KEY` constraint | Noted in constraints column |
+| `FOREIGN KEY` constraint | Paragraph below column table |
+| `CREATE INDEX name ON table` | Section level 2 under the referenced table |
+| `CREATE VIEW name` | Section level 1 with CodeBlock of view body |
+| `CREATE PROCEDURE/FUNCTION` | Section level 1 with CodeBlock of body |
+| `-- comments` above CREATE | Paragraph prepended as description |
+| DML statements | CodeBlock with `sql` language hint |
+
+### Word count
+
+Sum of table names, column names, and comment text, split by whitespace.
