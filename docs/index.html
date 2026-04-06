@@ -3,9 +3,9 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Distill &mdash; Convert documents to clean, LLM-optimized Markdown</title>
-  <meta name="description" content="Python library that converts Word, Excel, PowerPoint, PDF, and Google Docs to clean, token-efficient Markdown &mdash; built for LLM pipelines and RAG systems." />
-  <meta property="og:title" content="Distill &mdash; Document to Markdown for LLMs" />
+  <title>Distill &ndash; Convert documents to clean, LLM-optimized Markdown</title>
+  <meta name="description" content="Python library that converts Word, Excel, PowerPoint, PDF, and Google Docs to clean, token-efficient Markdown &ndash; built for LLM pipelines and RAG systems." />
+  <meta property="og:title" content="Distill &ndash; Document to Markdown for LLMs" />
   <meta property="og:description" content="Convert Word, Excel, PowerPoint, PDF, and Google Docs to clean, token-efficient Markdown. Built for LLM pipelines and RAG systems." />
   <meta property="og:url" content="https://lakshgk.github.io/distill/" />
   <meta name="twitter:card" content="summary" />
@@ -394,12 +394,12 @@
 <div class="hero">
   <div class="hero-badge">Open Source &middot; MIT License &middot; Python 3.10+</div>
   <h1>Documents to <span>clean Markdown</span>,<br>purpose-built for LLMs</h1>
-  <p>Distill extracts semantic structure from Word, Excel, PowerPoint, PDF, and Google Workspace files and renders token-efficient Markdown &mdash; built for LLM pipelines and RAG systems.</p>
+  <p>Distill extracts semantic structure from Word, Excel, PowerPoint, PDF, and Google Workspace files and renders token-efficient Markdown &ndash; built for LLM pipelines and RAG systems.</p>
   <div class="cta-group">
     <a href="https://github.com/lakshgk/distill" class="btn btn-primary" target="_blank">
       &#11088; Star on GitHub
     </a>
-    <a href="quickstart-library" class="btn btn-secondary" target="_blank">
+    <a href="https://github.com/lakshgk/distill#install" class="btn btn-secondary" target="_blank">
       View docs &rarr;
     </a>
   </div>
@@ -419,7 +419,7 @@
 <!-- STATS BAR -->
 <div class="stats-bar">
   <div class="stat">
-    <span class="stat-number">19</span>
+    <span class="stat-number">11</span>
     <span class="stat-label">Formats supported</span>
   </div>
   <div class="stat">
@@ -436,34 +436,12 @@
   </div>
 </div>
 
-<!-- TWO WAYS TO USE -->
-<section id="modes" style="padding: 3rem 2rem;">
-  <div class="section-inner">
-    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem;">
-      <div class="feature-card" style="text-align: center;">
-        <div class="feature-icon">&#128218;</div>
-        <h3>As a Python library</h3>
-        <p style="font-size: 0.85rem; color: var(--muted); margin-bottom: 1rem;">No server required. Install distill-core, call convert(), get Markdown.</p>
-        <div class="install-block" style="font-size: 0.82rem; margin-bottom: 1rem;">pip install distill-core</div>
-        <a href="quickstart-library" style="font-size: 0.88rem; color: var(--accent-text); text-decoration: none; font-weight: 600;">Library quickstart &rarr;</a>
-      </div>
-      <div class="feature-card" style="text-align: center;">
-        <div class="feature-icon">&#128640;</div>
-        <h3>As a self-hosted service</h3>
-        <p style="font-size: 0.85rem; color: var(--muted); margin-bottom: 1rem;">Full REST API, async job queue, Flower monitoring. Docker Compose in one command.</p>
-        <div class="install-block" style="font-size: 0.82rem; margin-bottom: 1rem;">docker compose up -d</div>
-        <a href="quickstart-service" style="font-size: 0.88rem; color: var(--accent-text); text-decoration: none; font-weight: 600;">Service quickstart &rarr;</a>
-      </div>
-    </div>
-  </div>
-</section>
-
 <!-- FEATURES -->
 <section id="features">
   <div class="section-inner">
     <div class="section-label">Features</div>
     <h2>Everything you need to feed documents into an LLM</h2>
-    <p class="section-sub">Distill handles the hard parts &mdash; structure extraction, OCR, vision captioning, and token efficiency &mdash; so your pipeline doesn&rsquo;t have to.</p>
+    <p class="section-sub">Distill handles the hard parts &ndash; structure extraction, OCR, vision captioning, and token efficiency &ndash; so your pipeline doesn&rsquo;t have to.</p>
     <div class="features-grid">
       <div class="feature-card">
         <div class="feature-icon">&#128196;</div>
@@ -494,21 +472,6 @@
         <div class="feature-icon">&#127760;</div>
         <h3>Web UI + REST API</h3>
         <p>Local browser interface and POST /api/convert endpoint included. No account, no cloud, no subscription.</p>
-      </div>
-      <div class="feature-card">
-        <div class="feature-icon">&#128736;&#65039;</div>
-        <h3>Async job queue</h3>
-        <p>Large files and audio processed in the background. Poll or receive results via webhook callback.</p>
-      </div>
-      <div class="feature-card">
-        <div class="feature-icon">&#128225;</div>
-        <h3>Real-time progress</h3>
-        <p>Stream job progress via Server-Sent Events. Every pipeline stage emits live updates.</p>
-      </div>
-      <div class="feature-card">
-        <div class="feature-icon">&#128200;</div>
-        <h3>Priority routing</h3>
-        <p>Interactive and batch queues keep time-sensitive conversions fast even under heavy load.</p>
       </div>
     </div>
   </div>
@@ -557,7 +520,7 @@ result = <span class="fn">convert</span>(<span class="str">"report.docx"</span>)
 <span class="kw">for</span> chunk <span class="kw">in</span> <span class="fn">convert_stream</span>(<span class="str">"report.docx"</span>):
     <span class="fn">print</span>(chunk)
 
-<span class="cm"># REST API &mdash; no Python needed</span>
+<span class="cm"># REST API &ndash; no Python needed</span>
 <span class="cm"># curl -X POST localhost:7860/api/convert \</span>
 <span class="cm"># -F "file=@report.pdf"</span>
 
@@ -574,8 +537,8 @@ result = <span class="fn">convert</span>(<span class="str">"report.docx"</span>)
 <section id="formats" class="formats-section">
   <div class="section-inner">
     <div class="section-label">Supported Formats</div>
-    <h2>19 formats, one API</h2>
-    <p class="section-sub">From Office files to scanned PDFs to Google Workspace, audio, EPUB, and more &mdash; all processed through the same structured pipeline.</p>
+    <h2>11 formats, one API</h2>
+    <p class="section-sub">From Office files to scanned PDFs to Google Workspace &ndash; all processed through the same structured pipeline.</p>
     <div class="table-wrap">
       <table>
         <thead>
@@ -595,14 +558,6 @@ result = <span class="fn">convert</span>(<span class="str">"report.docx"</span>)
           <tr><td>Google Docs</td><td>Drive URL</td><td><span class="reduction">~60%</span></td><td>Requires distill-core[google]</td></tr>
           <tr><td>Google Sheets</td><td>Drive URL</td><td><span class="reduction">~70%</span></td><td>Requires distill-core[google]</td></tr>
           <tr><td>Google Slides</td><td>Drive URL</td><td><span class="reduction">~55%</span></td><td>Requires distill-core[google]</td></tr>
-          <tr><td>OpenDocument Text</td><td><code>.odt</code></td><td><span class="reduction">~60%</span></td><td>Requires LibreOffice</td></tr>
-          <tr><td>Excel (macro-enabled)</td><td><code>.xlsm</code></td><td><span class="reduction">~70%</span></td><td>Macros stripped</td></tr>
-          <tr><td>HTML</td><td><code>.html, .htm</code></td><td><span class="reduction">~40%</span></td><td>Boilerplate stripping optional</td></tr>
-          <tr><td>Audio</td><td><code>.mp3, .wav, .m4a, .flac, .ogg</code></td><td>&mdash;</td><td>Requires distill-core[audio]</td></tr>
-          <tr><td>EPUB</td><td><code>.epub</code></td><td><span class="reduction">~55%</span></td><td>Requires distill-core[epub]</td></tr>
-          <tr><td>WSDL</td><td><code>.wsdl, .wsd</code></td><td>&mdash;</td><td>Service definition to Markdown</td></tr>
-          <tr><td>JSON / JSON Schema</td><td><code>.json</code></td><td>&mdash;</td><td>Schema &rarr; sections, data &rarr; tables</td></tr>
-          <tr><td>SQL DDL</td><td><code>.sql</code></td><td>&mdash;</td><td>Requires distill-core[sql]</td></tr>
         </tbody>
       </table>
     </div>
@@ -626,7 +581,7 @@ result = <span class="fn">convert</span>(<span class="str">"report.docx"</span>)
       </div>
       <div class="audience-card">
         <h3>&#128270; Document search developers</h3>
-        <p>Structured output means your search index reflects the actual shape of the document &mdash; not a flat wall of text.</p>
+        <p>Structured output means your search index reflects the actual shape of the document &ndash; not a flat wall of text.</p>
       </div>
       <div class="audience-card">
         <h3>&#9889; Token-budget optimisers</h3>
@@ -643,7 +598,7 @@ result = <span class="fn">convert</span>(<span class="str">"report.docx"</span>)
     <p>Open source, MIT licensed, no cloud required. Works entirely on your machine.</p>
     <div class="cta-group">
       <a href="https://github.com/lakshgk/distill" class="btn btn-primary" target="_blank">View on GitHub &rarr;</a>
-      <a href="quickstart-library" class="btn btn-secondary" target="_blank">Read the docs</a>
+      <a href="https://github.com/lakshgk/distill#install" class="btn btn-secondary" target="_blank">Read the docs</a>
     </div>
     <div class="install-block" style="margin: 0 auto; width: fit-content;">
       <span class="prompt">$</span>
