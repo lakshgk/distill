@@ -163,11 +163,24 @@ def _build_credentials(options: ParseOptions):
 
     # Option 2: raw access token in extra
     token = options.extra.get("access_token")
+    if not token:
+        try:
+            from distill_app import settings as _settings
+            token = _settings.GOOGLE_ACCESS_TOKEN or None
+        except ImportError:
+            pass
     if token:
         return ga_credentials.Credentials(token=token)
 
-    # Option 3: env var pointing at service account JSON
-    env_path = os.environ.get("DISTILL_GOOGLE_CREDENTIALS")
+    # Option 3: env var / settings pointing at service account JSON
+    env_path = None
+    try:
+        from distill_app import settings as _settings
+        env_path = _settings.GOOGLE_CREDENTIALS_PATH or None
+    except ImportError:
+        pass
+    if not env_path:
+        env_path = os.environ.get("DISTILL_GOOGLE_CREDENTIALS")
     if env_path:
         try:
             return service_account.Credentials.from_service_account_file(

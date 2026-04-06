@@ -419,6 +419,15 @@ class DocxParser(Parser):
             )
 
         document.sections.extend(sections)
+
+        # Math detection — check for OMML math elements
+        if options and options.collector and path:
+            try:
+                from distill.features.math_detection import MathDetector
+                MathDetector().detect_in_docx(str(path), options.collector)
+            except Exception:
+                pass
+
         return document
 
 
@@ -455,6 +464,51 @@ class DocLegacyParser(Parser):
             doc.metadata.source_format = "doc"
             if not isinstance(source, bytes):
                 doc.metadata.source_path = str(source)
+            return doc
+        finally:
+            shutil.rmtree(output_path.parent, ignore_errors=True)
+
+
+@registry.register
+class OdtParser(Parser):
+    """
+    Converts .odt (OpenDocument Text) files to .docx via LibreOffice headless,
+    then delegates to DocxParser for the actual content extraction.
+
+    Requires LibreOffice to be installed and on PATH.
+    """
+
+    extensions            = [".odt"]
+    mime_types            = ["application/vnd.oasis.opendocument.text"]
+    requires              = ["mammoth", "docx"]
+    requires_libreoffice  = True
+
+    def parse(
+        self,
+        source: Union[str, Path, bytes],
+        options: Optional[ParseOptions] = None,
+    ) -> Document:
+        import shutil
+        from distill.parsers._libreoffice import convert_via_libreoffice
+        from distill.warnings import ConversionWarning, WarningType
+
+        options = options or ParseOptions()
+        timeout = options.extra.get("libreoffice_timeout", 60)
+
+        output_path = convert_via_libreoffice(source, "docx", timeout=timeout)
+        try:
+            doc = DocxParser().parse(output_path, options)
+            doc.metadata.source_format = "odt"
+            if not isinstance(source, bytes):
+                doc.metadata.source_path = str(source)
+
+            if options and options.collector:
+                options.collector.add(ConversionWarning(
+                    type=WarningType.CONTENT_EXTRACTED,
+                    message="ODT converted via LibreOffice — complex formatting "
+                            "may not round-trip perfectly",
+                ))
+
             return doc
         finally:
             shutil.rmtree(output_path.parent, ignore_errors=True)

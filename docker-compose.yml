@@ -1,0 +1,79 @@
+services:
+  redis:
+    image: redis:7-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "7860:7860"
+    depends_on:
+      redis:
+        condition: service_healthy
+    env_file: .env
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+    healthcheck:
+      test: ["CMD", "python", "-c", "import httpx; httpx.get('http://localhost:7860/')"]
+      interval: 15s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+  worker-interactive:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: >
+      celery -A distill_app.worker worker
+      --loglevel=info
+      --queues=distill.interactive
+      --concurrency=${DISTILL_INTERACTIVE_CONCURRENCY:-4}
+      --hostname=worker-interactive@%h
+    depends_on:
+      redis:
+        condition: service_healthy
+    env_file: .env
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+    restart: unless-stopped
+
+  worker-batch:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: >
+      celery -A distill_app.worker worker
+      --loglevel=info
+      --queues=distill.batch
+      --concurrency=${DISTILL_BATCH_CONCURRENCY:-2}
+      --hostname=worker-batch@%h
+    depends_on:
+      redis:
+        condition: service_healthy
+    env_file: .env
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+    restart: unless-stopped
+
+  flower:
+    image: mher/flower:2.0
+    command: celery flower --broker=redis://redis:6379/0 --port=5555
+    ports:
+      - "5555:5555"
+    depends_on:
+      redis:
+        condition: service_healthy
+      worker-interactive:
+        condition: service_started
+      worker-batch:
+        condition: service_started
+    restart: unless-stopped

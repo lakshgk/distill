@@ -10,7 +10,10 @@ from __future__ import annotations
 import abc
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional, Union
+from typing import TYPE_CHECKING, Optional, Union
+
+if TYPE_CHECKING:
+    from distill.warnings import WarningCollector
 
 
 @dataclass
@@ -32,8 +35,42 @@ class ParseOptions:
     # Quality
     min_quality:      float           = 0.0       # 0.0 = no minimum enforced
 
+    # OCR — whether OCR is available/enabled for scanned PDFs
+    ocr_enabled:      bool            = True
+
     # Extra per-format options passed through
     extra:            dict            = field(default_factory=dict)
+
+    # Output format — controls what convert() returns
+    # Accepted values: "markdown" | "json" | "html" | "chunks"
+    output_format:    str                        = "markdown"
+
+    # Pagination — insert page separators at page boundaries (PDF/DOCX only)
+    paginate_output:  bool                       = False
+
+    # HTML input: strip boilerplate via trafilatura / readability-lxml
+    extract_content:  bool                       = False
+
+    # LLM configuration — set by caller for LLM-powered features
+    llm:              Optional["LLMConfig"] = field(default=None, repr=False)
+
+    # LLM-powered cross-page table merging (PDF only)
+    llm_merge_tables: bool            = False
+
+    # Structured JSON extraction via LLM
+    extract:          bool            = False
+    schema:           Optional[dict]  = field(default=None, repr=False)
+
+    # Audio topic segmentation (requires LLM)
+    topic_segmentation: bool             = False
+
+    # Audio pipeline
+    transcription_engine: str              = "whisper"
+    whisper_model:        str              = "base"
+    hf_token:             Optional[str]    = None
+
+    # Warning collector — set by convert() before parse(); parsers may call collector.add()
+    collector:        Optional[WarningCollector] = field(default=None, repr=False)
 
 
 class Parser(abc.ABC):
@@ -124,3 +161,9 @@ class UnsupportedFormatError(DistillError):
 
 class ParseError(DistillError):
     """Raised when a parser fails to process a document."""
+
+
+AUDIO_IMPORT_ERROR = (
+    "Audio support requires additional dependencies. "
+    "Install them with: pip install distill-core[audio]"
+)

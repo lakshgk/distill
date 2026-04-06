@@ -30,8 +30,13 @@ The backend is chosen automatically based on what is installed.  Override with:
 
 from __future__ import annotations
 
+import contextlib
+import io
+import logging
 import shutil
+import sys
 import tempfile
+import warnings
 from pathlib import Path
 from typing import Optional, Union
 
@@ -40,6 +45,41 @@ from distill.ir import (
     List, ListItem, Paragraph, Section, Table, TableCell, TableRow, TextRun,
 )
 from distill.parsers.base import ParseError, ParseOptions
+
+
+_logger = logging.getLogger(__name__)
+
+_HF_WARNING_MARKERS = ("hf_token", "huggingface", "unauthenticated", "rate limit")
+
+
+@contextlib.contextmanager
+def _suppress_hf_warnings():
+    """Redirect Hugging Face token warnings from stderr to DEBUG logging.
+
+    Non-matching stderr lines are re-emitted to the original stderr so that
+    genuine errors are never silenced.  Python ``warnings`` from the
+    ``transformers`` and ``huggingface_hub`` packages are also suppressed for
+    the duration of the block.
+    """
+    original_stderr = sys.stderr
+    original_filters = warnings.filters[:]
+    buf = io.StringIO()
+    try:
+        sys.stderr = buf
+        warnings.filterwarnings("ignore", module=r"transformers.*")
+        warnings.filterwarnings("ignore", module=r"huggingface_hub.*")
+        yield
+    finally:
+        sys.stderr = original_stderr
+        warnings.filters[:] = original_filters
+
+        captured = buf.getvalue()
+        for line in captured.splitlines(keepends=True):
+            lower = line.lower()
+            if any(marker in lower for marker in _HF_WARNING_MARKERS):
+                _logger.debug("Suppressed HF warning: %s", line.rstrip())
+            else:
+                original_stderr.write(line)
 
 
 # ── Scanned detection ────────────────────────────────────────────────────────
@@ -134,8 +174,11 @@ def ocr_via_docling(
     src_path, created = _source_to_path(source)
     try:
         try:
-            converter = DocumentConverter()
-            result    = converter.convert(str(src_path))
+            with _suppress_hf_warnings():
+                converter = DocumentConverter()
+                result    = converter.convert(str(src_path))
+        except ParseError:
+            raise
         except Exception as exc:
             raise ParseError(f"docling conversion failed: {exc}") from exc
 

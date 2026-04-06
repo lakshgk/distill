@@ -252,7 +252,11 @@ class PdfParser(Parser):
             from distill.parsers._ocr import is_scanned_pdf, ocr_pdf
 
             if is_scanned_pdf(document, page_count):
-                if options.extra.get("enable_ocr", False):
+                # Determine effective OCR-enabled state: ParseOptions.ocr_enabled
+                # takes precedence, then fall back to extra['enable_ocr']
+                ocr_on = options.ocr_enabled and options.extra.get("enable_ocr", options.ocr_enabled)
+
+                if ocr_on:
                     document.warnings.append(
                         "Sparse text layer detected — running OCR pipeline"
                     )
@@ -262,6 +266,9 @@ class PdfParser(Parser):
                         document.warnings.append(f"OCR not available: {ocr_err}")
                         return document
                 else:
+                    # Scanned PDF with OCR disabled — signal OCR_REQUIRED
+                    from distill import ParserOutcome
+                    document.parser_outcome = ParserOutcome.OCR_REQUIRED
                     document.warnings.append(
                         "Sparse text layer detected — this PDF may be scanned. "
                         "Enable OCR in Options for better results."
@@ -275,6 +282,33 @@ class PdfParser(Parser):
         metadata = _extract_metadata(pdf, source)
         document = Document(metadata=metadata)
         max_rows = options.max_table_rows
+
+        # Capture source word count before IR mapping
+        try:
+            total_words = 0
+            for page in pdf.pages:
+                page_text = page.extract_text() or ""
+                total_words += len(page_text.split())
+            document.metadata.word_count = total_words or None
+        except Exception:
+            pass
+
+        # Math detection — scan character data for math fonts/symbols
+        if options and options.collector:
+            try:
+                from distill.features.math_detection import MathDetector
+                char_data = []
+                for page_num_md, page_md in enumerate(pdf.pages, start=1):
+                    for char in (page_md.chars or []):
+                        char_data.append({
+                            "fontname": char.get("fontname", ""),
+                            "text": char.get("text", ""),
+                            "page_number": page_num_md,
+                        })
+                if char_data:
+                    MathDetector().detect_in_pdf(char_data, options.collector)
+            except Exception:
+                pass
 
         for page_num, page in enumerate(pdf.pages, start=1):
             section = Section(

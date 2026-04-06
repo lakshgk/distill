@@ -389,6 +389,19 @@
             oninput="document.getElementById('slider-val').textContent = Number(this.value).toLocaleString()" />
           <div class="slider-bounds"><span>10</span><span>5,000</span></div>
         </div>
+        <div class="option-row" id="whisper-row" style="display:none">
+          <div>
+            <div class="option-label">Whisper Model</div>
+            <div class="option-desc">Larger = better quality, slower</div>
+          </div>
+          <select id="whisper-model" style="padding:6px 10px;border-radius:8px;border:1px solid #d1d5db;font-size:13px;background:#fff">
+            <option value="tiny">Tiny (fastest)</option>
+            <option value="base" selected>Base (recommended)</option>
+            <option value="small">Small</option>
+            <option value="medium">Medium (slow)</option>
+            <option value="large-v3">Large v3 (best, very slow)</option>
+          </select>
+        </div>
       </div>
 
       <div class="btn-row">
@@ -474,8 +487,8 @@
 
 <script>
 // ── State ─────────────────────────────────────────────────────────────────────
-const FORMAT_EMOJIS = { DOCX:'📝', DOC:'📝', XLSX:'📊', XLS:'📊', CSV:'📊', PPTX:'📋', PPT:'📋', PDF:'📄' };
-const FORMAT_NAMES  = { DOCX:'Word', DOC:'Word', XLSX:'Excel', XLS:'Excel', CSV:'CSV', PPTX:'PowerPoint', PPT:'PowerPoint', PDF:'PDF' };
+const FORMAT_EMOJIS = { DOCX:'📝', DOC:'📝', ODT:'📝', XLSX:'📊', XLSM:'📊', XLS:'📊', CSV:'📊', PPTX:'📋', PPT:'📋', PDF:'📄', HTML:'🌐', HTM:'🌐', MP3:'🎵', WAV:'🎵', M4A:'🎵', FLAC:'🎵', OGG:'🎵' };
+const FORMAT_NAMES  = { DOCX:'Word', DOC:'Word', ODT:'OpenDocument', XLSX:'Excel', XLSM:'Excel (Macro)', XLS:'Excel', CSV:'CSV', PPTX:'PowerPoint', PPT:'PowerPoint', PDF:'PDF', HTML:'HTML', HTM:'HTML', MP3:'Audio', WAV:'Audio', M4A:'Audio', FLAC:'Audio', OGG:'Audio' };
 
 let currentFile     = null;
 let currentMarkdown = '';
@@ -514,6 +527,12 @@ function loadFile(file) {
   document.getElementById('drop-file').classList.remove('hidden');
   document.getElementById('convert-btn').disabled = false;
   document.getElementById('clear-btn').disabled   = false;
+
+  // Show whisper model selector for audio files
+  const audioExts = ['MP3','WAV','M4A','FLAC','OGG'];
+  document.getElementById('whisper-row').style.display =
+    audioExts.includes(ext) ? 'flex' : 'none';
+
   resetOutput();
 }
 
@@ -558,6 +577,7 @@ async function startConvert() {
     form.append('include_metadata', document.getElementById('meta-toggle').checked);
     form.append('max_rows',         document.getElementById('max-rows-slider').value);
     form.append('enable_ocr',       document.getElementById('ocr-toggle').checked);
+    form.append('whisper_model',    document.getElementById('whisper-model').value);
 
     const res = await fetch('/api/convert', { method: 'POST', body: form });
 
@@ -568,6 +588,13 @@ async function startConvert() {
     }
 
     const data = await res.json();
+
+    // Async job queued (audio, large files) — poll for result
+    if (res.status === 202 && data.job_id) {
+      await pollJob(data.job_id, data.poll_url || `/jobs/${data.job_id}`);
+      return;
+    }
+
     currentMarkdown = data.markdown;
 
     renderQuality(data.quality);
@@ -587,6 +614,37 @@ async function startConvert() {
   }
 }
 
+async function pollJob(jobId, pollUrl) {
+  const MAX_POLLS = 120;  // 10 minutes at 5s intervals
+  const INTERVAL  = 5000;
+  for (let i = 0; i < MAX_POLLS; i++) {
+    await new Promise(r => setTimeout(r, INTERVAL));
+    try {
+      const res  = await fetch(pollUrl);
+      const data = await res.json();
+      if (data.status === 'complete' && data.result) {
+        currentMarkdown = data.result.markdown || '';
+        renderQuality(data.result.quality || {});
+        renderStats(data.result.stats || {});
+        renderOutput(currentMarkdown);
+        renderWarnings(data.result.warnings || []);
+        document.getElementById('output-empty').classList.add('hidden');
+        document.getElementById('output-result').classList.remove('hidden');
+        switchTab('preview');
+        return;
+      }
+      if (data.status === 'failed') {
+        showError(data.error || 'Async conversion failed');
+        return;
+      }
+      // Still queued or processing — continue polling
+    } catch (e) {
+      // Network blip — keep polling
+    }
+  }
+  showError('Conversion timed out after 10 minutes. Check /jobs/' + jobId);
+}
+
 function showError(msg) {
   document.getElementById('output-empty').classList.remove('hidden');
   document.getElementById('converting-state').classList.add('hidden');
@@ -599,6 +657,7 @@ function showError(msg) {
 
 // ── Render helpers ────────────────────────────────────────────────────────────
 function renderQuality(q) {
+  if (!q) q = {};
   const pct   = Math.round((q.overall || 0) * 100);
   const badge = document.getElementById('quality-badge');
   badge.className = 'quality-badge ' +
@@ -650,7 +709,7 @@ function renderWarnings(warnings) {
     return;
   }
   document.getElementById('warnings-list').innerHTML =
-    warnings.map(w => `<div>· ${w}</div>`).join('');
+    warnings.map(w => `<div>· ${typeof w === 'object' ? (w.message || JSON.stringify(w)) : w}</div>`).join('');
   box.classList.add('visible');
 }
 

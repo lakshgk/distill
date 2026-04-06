@@ -22,6 +22,7 @@ from distill.ir import (
 )
 from distill.parsers.base import ParseError, ParseOptions
 from distill.parsers._ocr import (
+    _suppress_hf_warnings,
     _text_to_blocks,
     is_scanned_pdf,
     ocr_pdf,
@@ -63,6 +64,64 @@ def _doc_with_words(n: int, pages: int = 1) -> Document:
     return Document(sections=[
         Section(blocks=[Paragraph(runs=[TextRun(text=text)])])
     ])
+
+
+# ── _suppress_hf_warnings ────────────────────────────────────────────────────
+
+class TestSuppressHfWarnings:
+    def test_filters_hf_token_from_stderr(self):
+        """Lines containing HF_TOKEN are suppressed from stderr."""
+        buf = io.StringIO()
+        original = sys.stderr
+        sys.stderr = buf
+        try:
+            with _suppress_hf_warnings():
+                print("Set HF_TOKEN to access gated models", file=sys.stderr)
+            sys.stderr = original
+            assert "HF_TOKEN" not in buf.getvalue()
+        finally:
+            sys.stderr = original
+
+    def test_filters_huggingface_from_stderr(self):
+        """Lines containing 'huggingface' are suppressed from stderr."""
+        buf = io.StringIO()
+        original = sys.stderr
+        sys.stderr = buf
+        try:
+            with _suppress_hf_warnings():
+                print("huggingface unauthenticated request", file=sys.stderr)
+            sys.stderr = original
+            assert "huggingface" not in buf.getvalue()
+        finally:
+            sys.stderr = original
+
+    def test_does_not_suppress_genuine_errors(self):
+        """Non-HF stderr lines pass through unchanged."""
+        buf = io.StringIO()
+        original = sys.stderr
+        sys.stderr = buf
+        try:
+            with _suppress_hf_warnings():
+                print("genuine error from docling", file=sys.stderr)
+            sys.stderr = original
+            assert "genuine error" in buf.getvalue()
+        finally:
+            sys.stderr = original
+
+    def test_restores_stderr_on_normal_exit(self):
+        """sys.stderr is restored after the context manager exits normally."""
+        original = sys.stderr
+        with _suppress_hf_warnings():
+            pass
+        assert sys.stderr is original
+
+    def test_restores_stderr_on_exception(self):
+        """sys.stderr is restored even when an exception is raised inside the block."""
+        original = sys.stderr
+        with pytest.raises(ValueError, match="test"):
+            with _suppress_hf_warnings():
+                raise ValueError("test")
+        assert sys.stderr is original
 
 
 # ── is_scanned_pdf ────────────────────────────────────────────────────────────

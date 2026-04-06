@@ -1,0 +1,5 @@
+*.mp3
+*.m4a
+*.flac
+*.ogg
+# WAV fixtures are small (stdlib-generated, no dependencies) — keep them

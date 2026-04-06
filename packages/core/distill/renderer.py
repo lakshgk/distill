@@ -37,11 +37,14 @@ class MarkdownRenderer:
         max_heading_depth: int  = 6,
         table_alignment:   bool = True,
         image_mode:        str  = "auto",
+        paginate_output:   bool = False,
     ):
         self.front_matter      = front_matter
         self.max_heading_depth = max_heading_depth
         self.table_alignment   = table_alignment
         self.image_mode        = image_mode
+        self.paginate_output   = paginate_output
+        self._last_page: int | None = None   # tracks the last emitted page number
 
     # ── Entry point ──────────────────────────────────────────────────────────
 
@@ -55,6 +58,8 @@ class MarkdownRenderer:
         Each subsequent chunk is one top-level section rendered to Markdown.
         Empty sections are skipped.
         """
+        self._last_page = None  # reset per render call
+
         if self.front_matter:
             fm = self._front_matter(doc)
             if fm:
@@ -103,6 +108,18 @@ class MarkdownRenderer:
     def _render_section(self, section: Section, depth: int = 0) -> str:
         parts: list[str] = []
         level = min(section.level, self.max_heading_depth)
+
+        # Page separator — only when paginate_output=True and the section carries
+        # a `page` attribute (not yet in the IR schema; this is a no-op until added).
+        if self.paginate_output:
+            try:
+                page = getattr(section, "page", None)
+                if page is not None and page != self._last_page:
+                    if self._last_page is not None:
+                        parts.append(f"---\n*Page {page}*")
+                    self._last_page = page
+            except Exception:
+                pass  # never raise; missing page metadata is silently ignored
 
         if section.heading:
             heading_text = self._render_runs(section.heading)

@@ -43,10 +43,11 @@ def _mock_result(
         token_reduction_ratio = 0.80,
     )
     r = MagicMock()
-    r.markdown        = markdown
-    r.quality_score   = quality
-    r.quality_details = qs
-    r.warnings        = warnings or []
+    r.markdown             = markdown
+    r.quality_score        = quality
+    r.quality_details      = qs
+    r.warnings             = warnings or []
+    r.structured_warnings  = warnings or []
     m = MagicMock()
     m.word_count    = 120
     m.page_count    = 3
