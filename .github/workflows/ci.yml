@@ -50,7 +50,7 @@ jobs:
       - name: Install distill-core and distill-app
         run: |
           pip install -e "packages/core[dev]"
-          pip install -e packages/app
+          pip install -e "packages/app[dev]"
 
       - name: Run app tests
         run: pytest packages/app/tests -v --tb=short
