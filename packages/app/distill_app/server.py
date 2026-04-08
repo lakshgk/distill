@@ -730,6 +730,10 @@ def build_app():
     return app
 
 
+# Module-level instance for ASGI servers (e.g. `uvicorn distill_app.server:app`)
+app = build_app()
+
+
 def launch(
     host:      str  = "127.0.0.1",
     port:      int  = 7860,
