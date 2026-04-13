@@ -15,6 +15,14 @@ from distill.warnings import ConversionWarning, WarningCollector, WarningType
 
 # ── WarningCollector unit tests ──────────────────────────────────────────────
 
+def test_warning_type_table_complex_exists():
+    assert WarningType.table_complex.value == "table_complex"
+
+
+def test_warning_type_vision_caption_failed_exists():
+    assert WarningType.vision_caption_failed.value == "vision_caption_failed"
+
+
 def test_add_and_all_accumulate():
     c = WarningCollector()
     c.add(ConversionWarning(type=WarningType.MATH_DETECTED, message="found math"))
@@ -102,6 +110,49 @@ def _make_docx_bytes() -> bytes:
     buf = io.BytesIO()
     doc.save(buf)
     return buf.getvalue()
+
+
+def test_warning_type_image_write_failed_exists():
+    assert WarningType.image_write_failed.value == "image_write_failed"
+
+
+def test_extract_image_unwritable_emits_warning():
+    from distill.parsers.base import extract_image
+
+    collector = WarningCollector()
+    result = extract_image(
+        image_bytes=b"fakepng",
+        ext="png",
+        image_dir=Path("Z:/nonexistent_drive/images"),
+        filename="test_0",
+        collector=collector,
+    )
+    assert result is None
+    assert collector.has(WarningType.image_write_failed)
+
+
+def test_merged_cells_table_emits_table_complex_warning():
+    from distill.ir import Table, TableRow, TableCell, Paragraph, TextRun
+    from distill.renderer import MarkdownRenderer
+    from distill.parsers.base import ParseOptions
+
+    collector = WarningCollector()
+    options = ParseOptions(collector=collector)
+
+    table = Table(
+        rows=[
+            TableRow(cells=[
+                TableCell(content=[Paragraph(runs=[TextRun(text='A')])]),
+                TableCell(content=[Paragraph(runs=[TextRun(text='B')])]),
+            ]),
+        ],
+        merged_cells=True,
+    )
+
+    renderer = MarkdownRenderer()
+    renderer._render_table(table, options=options)
+
+    assert collector.has(WarningType.table_complex)
 
 
 def test_convert_result_has_structured_warnings_field():

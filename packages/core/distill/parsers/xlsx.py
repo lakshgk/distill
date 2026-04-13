@@ -24,6 +24,7 @@ from __future__ import annotations
 import io
 import re
 import zipfile
+from datetime import date, datetime
 from pathlib import Path
 from typing import Optional, Union
 
@@ -288,14 +289,31 @@ class XlsxParser(Parser):
             )
 
         rows_data: list[list[str]] = []
-        for row in ws.iter_rows():
+        for row_idx, row in enumerate(ws.iter_rows()):
             row_cells: list[str] = []
             for cell in row:
                 value = merged.get((cell.row, cell.column))
                 if value is None:
-                    value = str(cell.value) if cell.value is not None else ""
+                    raw = cell.value
+                    # Fix 3: format datetime headers as "Mon YYYY" or "YYYY-MM-DD"
+                    if row_idx == 0 and isinstance(raw, (datetime, date)):
+                        if isinstance(raw, datetime) and raw.hour == 0 and raw.minute == 0 and raw.second == 0 and raw.day == 1:
+                            value = raw.strftime("%b %Y")
+                        elif isinstance(raw, date) and not isinstance(raw, datetime) and raw.day == 1:
+                            value = raw.strftime("%b %Y")
+                        else:
+                            value = raw.strftime("%Y-%m-%d")
+                    else:
+                        value = str(raw) if raw is not None else ""
+                # Fix 1: annotate formula strings that leaked as plain text
+                if isinstance(value, str) and value.startswith("="):
+                    value = f"[formula: {value}]"
                 row_cells.append(value)
             rows_data.append(row_cells)
+
+        # Fix 2: strip blank trailing rows (ghost rows from cleared cells)
+        while rows_data and all(cell == "" for cell in rows_data[-1]):
+            rows_data.pop()
 
         if not rows_data:
             return None

@@ -19,6 +19,10 @@ _logger = logging.getLogger(__name__)
 # Known math font prefixes (case-insensitive match)
 _MATH_FONT_PREFIXES = ("cmmi", "cmsy", "msam", "msbm", "mtsy", "rmtmi")
 
+# Density thresholds — suppress false positives from stray glyph-map artefacts
+MIN_MATH_CHARS = 3          # absolute minimum math chars on a page
+MIN_MATH_RATIO = 0.002      # 0.2% of total page characters
+
 # Unicode math ranges
 _MATH_RANGES = [
     (0x2200, 0x22FF),   # Mathematical Operators
@@ -83,12 +87,20 @@ class MathDetector:
         page_data: list[dict],
         collector: WarningCollector,
     ) -> None:
-        math_pages: set[int] = set()
+        from collections import defaultdict
+
+        page_total_chars: dict[int, int] = defaultdict(int)
+        page_math_chars: dict[int, int] = defaultdict(int)
 
         for char in page_data:
             fontname = (char.get("fontname") or "").lower()
             text = char.get("text") or ""
             page_num = char.get("page_number")
+
+            if page_num is None:
+                continue
+
+            page_total_chars[page_num] += 1
 
             is_math = False
 
@@ -103,8 +115,19 @@ class MathDetector:
                         is_math = True
                         break
 
-            if is_math and page_num is not None:
-                math_pages.add(page_num)
+            if is_math:
+                page_math_chars[page_num] += 1
+
+        # Apply density threshold per page
+        math_pages: set[int] = set()
+        for page_num in page_total_chars:
+            math_count = page_math_chars.get(page_num, 0)
+            total = page_total_chars[page_num]
+            if math_count < MIN_MATH_CHARS:
+                continue
+            if total > 0 and math_count / total < MIN_MATH_RATIO:
+                continue
+            math_pages.add(page_num)
 
         if math_pages:
             sorted_pages = sorted(math_pages)

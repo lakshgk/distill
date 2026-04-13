@@ -82,10 +82,12 @@ class TableRow:
 
 @dataclass
 class Table:
-    rows:        list[TableRow]        = field(default_factory=list)
-    caption:     Optional[str]         = None
-    truncated:   bool                  = False   # True if rows were capped
-    total_rows:  Optional[int]         = None    # original row count before truncation
+    rows:            list[TableRow]        = field(default_factory=list)
+    caption:         Optional[str]         = None
+    truncated:       bool                  = False   # True if rows were capped
+    total_rows:      Optional[int]         = None    # original row count before truncation
+    merged_cells:    bool                  = False   # True if any cell spans rows/cols
+    complex_headers: bool                  = False   # True if multi-row or nested headers
 
 
 @dataclass
@@ -154,6 +156,7 @@ class DocumentMetadata:
     language:       Optional[str]       = None   # BCP-47 language tag e.g. "en-US"
     source_format:  Optional[str]       = None   # e.g. "docx", "pdf", "pptx"
     source_path:    Optional[str]       = None
+    decorative_images_filtered: int     = 0
 
 
 # ── Root node ────────────────────────────────────────────────────────────────

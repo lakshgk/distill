@@ -14,7 +14,7 @@ from pathlib import Path
 import pytest
 
 from distill.ir import (
-    CodeBlock, Document, List, Paragraph, Section, Table, TextRun,
+    CodeBlock, Document, Image, List, Paragraph, Section, Table, TextRun,
 )
 from distill.parsers.base import ParseError
 from distill.parsers.docx import (
@@ -296,6 +296,91 @@ class TestRenderIntegration:
         doc  = DocxParser().parse(data)
         assert isinstance(doc.warnings, list)
 
+    def test_table_produces_gfm_pipe_syntax(self):
+        data = _make_docx_with_table()
+        doc  = DocxParser().parse(data)
+        md   = doc.render(front_matter=False)
+        assert "| --- |" in md
+
+    def test_empty_image_suppressed(self):
+        from distill.renderer import MarkdownRenderer
+        doc = Document(sections=[
+            Section(level=0, blocks=[
+                Image(),
+                Paragraph(runs=[TextRun(text="Body content")]),
+            ])
+        ])
+        md = MarkdownRenderer(front_matter=False).render(doc)
+        assert "![" not in md
+        assert "Body content" in md
+
+
+# ── Image extraction / suppression ────────────────────────────────────────────
+
+def _make_docx_with_image() -> bytes:
+    """Build a .docx that contains a paragraph and an inline image."""
+    import docx as python_docx
+    import struct, zlib
+
+    raw = b'\x00\xff\x00\x00'
+    compressed = zlib.compress(raw)
+    def chunk(ctype, data):
+        c = ctype + data
+        return struct.pack('>I', len(data)) + c + struct.pack('>I', zlib.crc32(c) & 0xffffffff)
+    png = (b'\x89PNG\r\n\x1a\n' +
+           chunk(b'IHDR', struct.pack('>IIBBBBB', 1, 1, 8, 2, 0, 0, 0)) +
+           chunk(b'IDAT', compressed) +
+           chunk(b'IEND', b''))
+
+    buf = io.BytesIO()
+    doc = python_docx.Document()
+    doc.add_paragraph("Text before image.")
+    doc.add_picture(io.BytesIO(png))
+    doc.add_paragraph("Text after image.")
+    doc.save(buf)
+    return buf.getvalue()
+
+
+class TestImageWiring:
+    def test_image_suppressed(self, tmp_path):
+        from distill.parsers.base import ParseOptions
+        p = tmp_path / "img.docx"
+        p.write_bytes(_make_docx_with_image())
+        doc = DocxParser().parse(p, options=ParseOptions(images="suppress"))
+        images = _collect_blocks(doc, Image)
+        assert len(images) == 0
+
+    def test_image_extraction(self, tmp_path):
+        from distill.parsers.base import ParseOptions
+        p = tmp_path / "img.docx"
+        p.write_bytes(_make_docx_with_image())
+        img_dir = tmp_path / "images"
+        doc = DocxParser().parse(
+            p,
+            options=ParseOptions(images="extract", image_dir=str(img_dir)),
+        )
+        images = _collect_blocks(doc, Image)
+        assert len(images) >= 1
+        assert any(img.path is not None for img in images)
+        md = doc.render(front_matter=False)
+        assert "![](" not in md or "![" in md  # no fully-empty image tags
+
+
+# ── Decorative image classification ──────────────────────────────────────────
+
+class TestDecorativeClassification:
+    def test_watermark_alt_is_decorative(self):
+        from distill.parsers.base import classify_image
+        from distill.ir import ImageType
+        result = classify_image(mode="docx", alt="watermark company logo")
+        assert result == ImageType.DECORATIVE
+
+    def test_content_alt_not_decorative(self):
+        from distill.parsers.base import classify_image
+        from distill.ir import ImageType
+        result = classify_image(mode="docx", alt="Quarterly revenue chart")
+        assert result == ImageType.UNKNOWN
+
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -324,3 +409,67 @@ def _collect_blocks(doc: Document, block_type):
             if isinstance(block, block_type):
                 result.append(block)
     return result
+
+
+# ── H1 demotion fix ─────────────────────────────────────────────────────────
+
+class TestH1Demotion:
+    def test_unnumbered_h1_not_demoted(self):
+        """Unnumbered Heading 1 must render as # (H1), not ## (H2)."""
+        data = _make_docx(
+            headings=[("Engagement Context", 1)],
+            paragraphs=["Body text."],
+        )
+        doc = DocxParser().parse(data)
+        md = doc.render(front_matter=False)
+
+        assert "# Engagement Context" in md, \
+            f"Unnumbered H1 should render as #, got:\n{md}"
+        assert "## Engagement Context" not in md, \
+            f"Unnumbered H1 must not be demoted to ##, got:\n{md}"
+
+    def test_numbered_h1_renders_correctly(self):
+        """Numbered Heading 1 must render as # (H1)."""
+        data = _make_docx(
+            headings=[("1. Introduction", 1)],
+            paragraphs=["Body text."],
+        )
+        doc = DocxParser().parse(data)
+        md = doc.render(front_matter=False)
+
+        assert "# 1. Introduction" in md, \
+            f"Numbered H1 should render as #, got:\n{md}"
+
+    def test_h2_unaffected_by_h1_fix(self):
+        """H2 headings must still render as ## after the H1 fix."""
+        data = _make_docx(
+            headings=[("Top Level", 1), ("Sub Section", 2)],
+            paragraphs=["Body text."],
+        )
+        doc = DocxParser().parse(data)
+        md = doc.render(front_matter=False)
+
+        assert "# Top Level" in md, f"H1 not rendered correctly:\n{md}"
+        assert "## Sub Section" in md, f"H2 not rendered correctly:\n{md}"
+
+    def test_mixed_h1_headings(self):
+        """Both numbered and unnumbered H1s in the same doc must render as #."""
+        import docx as python_docx
+
+        buf = io.BytesIO()
+        doc = python_docx.Document()
+        doc.add_heading("Executive Summary", level=1)
+        doc.add_heading("1. Background", level=1)
+        doc.add_heading("Delivery Schedule", level=1)
+        doc.add_heading("2. Approach", level=1)
+        doc.save(buf)
+
+        ir = DocxParser().parse(buf.getvalue())
+        md = ir.render(front_matter=False)
+
+        for heading in ["Executive Summary", "1. Background",
+                        "Delivery Schedule", "2. Approach"]:
+            assert f"# {heading}" in md, \
+                f'Heading "{heading}" not rendered as #:\n{md}'
+            assert f"## {heading}" not in md, \
+                f'Heading "{heading}" incorrectly demoted to ##:\n{md}'

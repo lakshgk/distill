@@ -177,11 +177,15 @@ class MarkdownRenderer:
 
     # ── Tables ───────────────────────────────────────────────────────────────
 
-    def _render_table(self, table: Table) -> str:
+    def _render_table(self, table: Table, options=None) -> str:
         if not table.rows:
             return ""
 
-        lines = []
+        if getattr(table, "merged_cells", False) or getattr(table, "complex_headers", False):
+            return self._render_table_html(table, options)
+
+        # GFM pipe table
+        lines: list[str] = []
         if table.caption:
             lines.append(f"*{table.caption}*\n")
 
@@ -190,41 +194,70 @@ class MarkdownRenderer:
                 f"<!-- Table truncated: showing first rows of {table.total_rows} total -->"
             )
 
-        # Collect all rows as string grids
+        # Collect all rows as string grids — strip newlines from cells
         grid: list[list[str]] = []
         for row in table.rows:
-            grid.append([self._render_cell(cell) for cell in row.cells])
+            grid.append([
+                self._render_cell(cell).replace("\n", " ").strip()
+                for cell in row.cells
+            ])
 
         if not grid:
             return ""
 
-        col_count = max(len(row) for row in grid)
+        col_count = max(len(r) for r in grid)
 
         # Pad short rows
-        for row in grid:
-            while len(row) < col_count:
-                row.append("")
-
-        # Column widths
-        widths = [max(len(grid[r][c]) for r in range(len(grid))) for c in range(col_count)]
-        widths = [max(w, 3) for w in widths]
-
-        def fmt_row(cells: list[str]) -> str:
-            padded = [c.ljust(widths[i]) for i, c in enumerate(cells)]
-            return "| " + " | ".join(padded) + " |"
+        for r in grid:
+            while len(r) < col_count:
+                r.append("")
 
         # Header row (first row)
-        lines.append(fmt_row(grid[0]))
+        lines.append("| " + " | ".join(grid[0]) + " |")
 
-        # Separator
-        sep_cells = ["-" * widths[i] for i in range(col_count)]
-        lines.append("| " + " | ".join(sep_cells) + " |")
+        # Alignment separator — no alignment hints
+        lines.append("| " + " | ".join("---" for _ in range(col_count)) + " |")
 
         # Body rows
-        for row in grid[1:]:
-            lines.append(fmt_row(row))
+        for r in grid[1:]:
+            lines.append("| " + " | ".join(r) + " |")
 
         return "\n".join(lines)
+
+    def _render_table_html(self, table: Table, options=None) -> str:
+        """Render a complex table as semantic HTML and emit a warning."""
+        import html as _html
+        from distill.warnings import ConversionWarning, WarningType
+
+        if options is not None and getattr(options, "collector", None) is not None:
+            options.collector.add(ConversionWarning(
+                type=WarningType.table_complex,
+                message="Table contains merged cells or complex headers; rendered as HTML.",
+                pages=getattr(table, "pages", None),
+            ))
+
+        first_row = table.rows[0]
+        has_header = all(getattr(cell, "is_header", False) for cell in first_row.cells)
+
+        parts = ["<table>"]
+        start_idx = 0
+        if has_header:
+            parts.append("<thead><tr>")
+            for cell in first_row.cells:
+                parts.append(f"<th>{_html.escape(self._render_cell(cell))}</th>")
+            parts.append("</tr></thead>")
+            start_idx = 1
+
+        parts.append("<tbody>")
+        for row in table.rows[start_idx:]:
+            parts.append("<tr>")
+            for cell in row.cells:
+                parts.append(f"<td>{_html.escape(self._render_cell(cell))}</td>")
+            parts.append("</tr>")
+        parts.append("</tbody>")
+        parts.append("</table>")
+
+        return "".join(parts)
 
     def _render_cell(self, cell: TableCell) -> str:
         parts = []
@@ -267,28 +300,31 @@ class MarkdownRenderer:
         if img.image_type == ImageType.DECORATIVE:
             return ""
 
-        # Priority: structured_data > ocr_text > caption > alt_text > path
-        if img.structured_data:
-            rows = img.structured_data
-            if rows:
-                headers = list(rows[0].keys())
-                tbl_rows = [[str(r.get(h, "")) for h in headers] for r in rows]
-                widths   = [max(len(h), max((len(r[i]) for r in tbl_rows), default=0))
-                            for i, h in enumerate(headers)]
-                lines    = []
-                lines.append("| " + " | ".join(h.ljust(widths[i]) for i, h in enumerate(headers)) + " |")
-                lines.append("| " + " | ".join("-" * widths[i] for i in range(len(headers))) + " |")
-                for row in tbl_rows:
-                    lines.append("| " + " | ".join(row[i].ljust(widths[i]) for i in range(len(headers))) + " |")
-                caption = f"\n*{img.alt_text or 'Chart data'}*" if img.alt_text else ""
-                return "\n".join(lines) + caption
+        # Alt field priority: caption > ocr_text (first 80 chars) > alt_text > ""
+        caption = getattr(img, "caption", None)
+        ocr_text = getattr(img, "ocr_text", None)
+        alt_text = getattr(img, "alt_text", None)
+        path = getattr(img, "path", None)
 
-        if img.ocr_text:
-            return f"```\n{img.ocr_text.strip()}\n```"
+        if caption:
+            alt_field = caption
+        elif ocr_text:
+            alt_field = ocr_text[:80]
+        elif alt_text:
+            alt_field = alt_text
+        else:
+            alt_field = ""
 
-        alt  = img.caption or img.alt_text or ""
-        path = img.path or ""
-        if path or alt:
-            return f"![{alt}]({path})"
+        src_field = path if path else ""
 
-        return ""
+        # Suppress entirely if both empty
+        if not alt_field and not src_field:
+            return ""
+
+        result = f"![{alt_field}]({src_field})"
+
+        # Append OCR text as fenced code block
+        if ocr_text:
+            result += f"\n\n```\n{ocr_text}\n```"
+
+        return result

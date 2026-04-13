@@ -139,28 +139,31 @@ class AudioParser(Parser):
                 ])],
             )
 
-        # 3. Speaker diarization
-        if publisher:
-            try:
-                publisher.emit("processing", stage="diarization", pct=75)
-            except Exception:
-                pass
+        # 3. Speaker diarization — gated by options.speaker_labels.
+        #    When False, the user has explicitly opted out; segments keep
+        #    whatever speaker field the transcriber populated (usually None).
+        if getattr(options, "speaker_labels", True):
+            if publisher:
+                try:
+                    publisher.emit("processing", stage="diarization", pct=75)
+                except Exception:
+                    pass
 
-        hf_token = getattr(options, "hf_token", None)
-        if not hf_token:
-            try:
-                from distill_app import settings
-                hf_token = settings.HF_TOKEN or None
-            except ImportError:
-                pass
-        diarizer = SpeakerDiarizer(hf_token=hf_token)
-        segments = diarizer.diarize(file_path, segments, collector)
+            hf_token = getattr(options, "hf_token", None)
+            if not hf_token:
+                try:
+                    from distill_app import settings
+                    hf_token = settings.HF_TOKEN or None
+                except ImportError:
+                    pass
+            diarizer = SpeakerDiarizer(hf_token=hf_token)
+            segments = diarizer.diarize(file_path, segments, collector)
 
-        if publisher:
-            try:
-                publisher.emit("processing", stage="diarization", pct=80)
-            except Exception:
-                pass
+            if publisher:
+                try:
+                    publisher.emit("processing", stage="diarization", pct=80)
+                except Exception:
+                    pass
 
         # 4. Topic segmentation (if enabled)
         if publisher and getattr(options, "topic_segmentation", False):

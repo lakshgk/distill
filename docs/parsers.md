@@ -34,7 +34,7 @@ This document describes how each parser works internally. It is aimed at contrib
 
 1. **Security checks** — input size limit (50 MB) and zip bomb limit (500 MB uncompressed).
 2. **Metadata extraction** — `python-docx` reads core properties: title, author, subject, comments (→ description), keywords, created/modified dates, word count, page count (from app properties XML).
-3. **Content extraction** — `mammoth` converts the `.docx` to HTML. `defusedxml.ElementTree` parses the HTML into the IR tree. Heading tags `h1`–`h6` create `Section` nodes; all other block elements populate the current section's `blocks`.
+3. **Content extraction** — `mammoth` converts the `.docx` to HTML with an explicit style map (`Heading 1 => h1:fresh`) to prevent unnumbered H1 demotion from embedded style maps. `defusedxml.ElementTree` parses the HTML into the IR tree. Heading tags `h1`–`h6` create `Section` nodes; all other block elements populate the current section's `blocks`.
 4. **Pandoc fallback** — if mammoth yields no content and pandoc is installed, the document is converted to GFM Markdown and wrapped in a single `Section`.
 
 ### Inline formatting
@@ -145,7 +145,7 @@ command handles both `.doc` and `.odt` transparently.
 
 1. **Security check** — input size limit (50 MB).
 2. **Open** — `pdfplumber.open()`. Password-protected PDFs raise `ParseError` with a clear message.
-3. **Native extraction** — for each page, tables are extracted first (with bounding boxes), then text is extracted from the body region (5%–92% of page height, excluding table bounding boxes).
+3. **Native extraction** — for each page, tables are extracted first (with bounding boxes), then text is extracted from the body region (5%–90% of page height, excluding table bounding boxes). Rotated text runs are detected via character transformation matrices and corrected before paragraph splitting. Font size data from `page.chars` is used to promote large-font lines to heading `Section` nodes.
 4. **Scanned PDF detection** — after native extraction, `is_scanned_pdf()` checks average word count per page. If below 5 words/page, the PDF is treated as image-only and a warning is added.
 5. **OCR** — only runs if `options.extra['enable_ocr']` is `True` (default `False`). Calls `ocr_pdf()`: tries docling first, falls back to Tesseract. If neither backend is available, a `ParseError` is raised.
 
@@ -178,11 +178,34 @@ Tesseract language via `options.extra['ocr_lang']` (default `"eng"`).
 
 ### Header and footer suppression
 
-The body crop excludes the top 5% and bottom 8% of each page height. Lines matching `^\s*\d+\s*$` (bare page numbers) are also filtered out.
+The body crop excludes the top 5% and bottom 10% of each page height. Page number lines are filtered via an extended regex that catches bare digits (`5`), pipe-prefixed (`| 6`), word-prefixed (`Page 5`), fraction-style (`5 of 20`), and dash-surrounded (`- 5 -`) patterns.
 
 ### Table extraction
 
-`pdfplumber` detects table bounding boxes before text extraction. Tables are extracted first; their regions are then excluded from text extraction to prevent content duplication. Rows are capped at `max_table_rows` (default 500).
+Tables are extracted using `find_tables()` + per-cell `extract_words()` to prevent mid-word splits at column boundaries. Falls back to `extract_tables()` on error. Table bounding boxes are excluded from text extraction to prevent content duplication. Rows are capped at `max_table_rows` (default 500).
+
+`_build_ir_table()` applies four false-positive filters before constructing IR nodes:
+
+1. **All-empty** — every cell is empty (decorative boxes, logos).
+2. **Majority phantom columns** — more than half the columns are entirely empty (accent bar ghost tables).
+3. **Effectively single-column** — only one column has non-empty content and total text exceeds 200 chars (page borders, text-box frames). Also strips prose-only prefix rows from hybrid tables where pdfplumber merges a prose section with a real table below.
+4. **Prose-in-cells** — narrow tables (<=3 cols) with average non-empty cell length >80 chars (page layout boxes with sentence-length content).
+
+### Cross-page table detection
+
+When a table on page N has the same column count as the first table on page N+1, a `cross_page_table` structured warning is emitted. Tracking resets when a page has no tables, preventing false positives on non-adjacent pages.
+
+### Heading detection
+
+`_build_line_font_map()` maps each text line's Y-coordinate to its maximum font size from `page.chars`. `_chars_to_blocks()` promotes lines with font size >= 1.4x the page median to `Section` heading nodes (2x median → H1, 1.6x → H2, else H3). Lines over 120 chars or bare page numbers are excluded. Falls back to flat `Paragraph` output when no font data is available.
+
+### Rotated text correction
+
+`_correct_rotated_text()` detects character runs with 90°/270° rotation via their transformation matrix (`a ≈ 0, d ≈ 0`) and reverses them to restore correct reading order.
+
+### Font encoding corruption detection
+
+`_detect_encoding_corruption()` checks the ratio of replacement characters, control characters, and Private Use Area codepoints in extracted text. When >8% of non-whitespace characters are corrupted, a `font_encoding_unsupported` warning is emitted.
 
 ### Metadata field mapping
 
@@ -216,8 +239,8 @@ The body crop excludes the top 5% and bottom 8% of each page height. Lines match
 ### Known limitations
 
 - Encrypted / password-protected PDFs raise `ParseError`.
-- Complex multi-column layouts may produce out-of-order text extraction.
-- Image extraction is not yet implemented.
+- Complex multi-column layouts may produce out-of-order text extraction (pdfplumber content-stream order).
+- Non-Unicode custom font encodings produce garbled text; a `font_encoding_unsupported` warning is emitted when detected.
 
 ---
 
@@ -235,9 +258,10 @@ The body crop excludes the top 5% and bottom 8% of each page height. Lines match
 2. **Metadata extraction** — `wb.properties` exposes the same OOXML core-property fields as python-docx: title, creator (→ author), subject, description, keywords, created/modified dates.
 3. **Sheet iteration** — each worksheet becomes an H2 `Section`. Empty and chart-only sheets (max_row == 0) are skipped with a warning.
 4. **Merged cell expansion** — `ws.merged_cells.ranges` is iterated before row extraction. The top-left value of each merge range is repeated into every subordinate cell position so table rows remain fully populated.
-5. **Row extraction** — `ws.iter_rows()` with the merged-cell override map applied. `data_only=True` on `load_workbook` returns cached computed values for formula cells.
+5. **Row extraction** — `ws.iter_rows()` with the merged-cell override map applied. `data_only=True` on `load_workbook` returns cached computed values for formula cells. Cell values starting with `=` (formula strings leaked as plain text) are annotated as `[formula: =...]`. Header row datetime values are formatted as `Mon YYYY` (when day==1) or `YYYY-MM-DD`.
 6. **Empty column trimming** — trailing columns that are empty across all rows are detected and stripped, preventing wide sparse tables from polluting the Markdown output.
-7. **Row cap** — applied after trimming, before table construction.
+7. **Trailing row stripping** — completely empty trailing rows (ghost rows from cleared cells) are removed before table construction.
+8. **Row cap** — applied after trimming, before table construction.
 
 ### Formula caching warning
 
@@ -323,10 +347,11 @@ All `XlsxParser` options are also forwarded.
 1. **Security checks** — input size limit (50 MB) and zip bomb limit (500 MB uncompressed). `.pptx` is a ZIP archive.
 2. **Metadata extraction** — `prs.core_properties` exposes the same OOXML core-property fields as python-docx.
 3. **Word count** — summed across all slide text frames and speaker notes.
-4. **Slide iteration** — each slide becomes an H2 `Section`. The slide title shape text is placed in the section heading; all other shapes are placed in section blocks.
-5. **Text frame parsing** — paragraph `level > 0` or presence of `a:buChar`/`a:buAutoNum` XML markers causes the paragraph to be treated as a `ListItem`; otherwise it becomes a `Paragraph`. Inline bold and italic formatting is preserved from run font properties.
+4. **Slide iteration** — each slide becomes an H2 `Section`. Title extraction uses the standard `slide.shapes.title` placeholder first, then a position + font-size heuristic fallback for custom-layout decks (top 15% of slide, font >= 20pt). Title shapes and footer placeholders (idx 11/12/13) are skipped in body processing. Bullet text frames are excluded from title fallback candidates.
+5. **Text frame parsing** — bullet detection checks `<a:buChar>` and `<a:buAutoNum>` inside `<a:pPr>` (not directly under `<a:p>`), respects `<a:buNone>` suppression, and treats `para.level > 0` as a bullet. Consecutive bullet paragraphs are grouped into nested `List` IR nodes via `_build_list_from_flat()`. Non-bullet paragraphs produce `Paragraph` nodes.
 6. **Tables** — `shape.has_table` shapes are converted to IR `Table`. First row is treated as header. `max_table_rows` cap applies.
 7. **Speaker notes** — `slide.notes_slide.notes_text_frame.text` is appended as a `BlockQuote` at the end of each section, if non-empty.
+8. **Image alt text** — `shape.description` (OOXML `descr` attribute, author-provided alt text) is preferred over `shape.name` (internal shape name). Falls back gracefully when `description` is not available.
 
 ### Metadata field mapping
 
@@ -353,7 +378,6 @@ All `XlsxParser` options are also forwarded.
 
 ### Known limitations
 
-- Image extraction not yet implemented; picture shapes produce `Image(ImageType.UNKNOWN)` with shape name as alt text.
 - Animations, transitions, and slide master content are not extracted.
 - SmartArt is not yet extracted.
 

@@ -24,6 +24,10 @@ class WarningType(str, Enum):
     AUDIO_MODEL_MISSING     = "audio_model_missing"
     TABLE_TRUNCATED         = "table_truncated"
     CONTENT_EXTRACTED       = "content_extracted"
+    table_complex           = "table_complex"
+    vision_caption_failed   = "vision_caption_failed"
+    image_write_failed      = "image_write_failed"
+    FONT_ENCODING_UNSUPPORTED = "font_encoding_unsupported"
 
 
 @dataclass

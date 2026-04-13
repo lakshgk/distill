@@ -162,18 +162,27 @@ def build_app():
     async def convert(
         file:              UploadFile       = File(...),
         include_metadata:  bool             = Form(True),
+        # `max_rows` is the legacy form field name; it maps to
+        # ParseOptions.max_table_rows. Kept as-is to avoid breaking API consumers.
         max_rows:          int              = Form(500),
         enable_ocr:        bool             = Form(False),
         extract_content:   bool             = Form(False),
         output_format:     str              = Form("markdown"),
+        paginate_output:   bool             = Form(False),
+        images:            str              = Form("extract"),
+        vision_provider:   Optional[str]    = Form(default=None),
+        vision_base_url:   Optional[str]    = Form(default=None),
+        vision_api_key:    Optional[str]    = Form(default=None),
         llm_merge_tables:  bool             = Form(False),
         llm_api_key:       str              = Form(""),
         llm_model:         str              = Form(""),
+        llm_base_url:      str              = Form(""),
         extract:               bool             = Form(False),
         schema:                str              = Form(""),
         transcription_engine:  str              = Form("whisper"),
         whisper_model:         str              = Form("base"),
         hf_token:              str              = Form(""),
+        speaker_labels:        bool             = Form(True),
         topic_segmentation:    bool             = Form(False),
         callback_url:          Optional[str]    = Form(default=None),
         priority:              Optional[str]    = Form(default=None),
@@ -188,6 +197,14 @@ def build_app():
                 status_code=422,
                 detail=f"Invalid output_format {output_format!r}. "
                        f"Accepted: {', '.join(sorted(VALID_OUTPUT_FORMATS))}",
+            )
+
+        VALID_IMAGE_MODES = {"suppress", "extract", "inline_ocr", "caption"}
+        if images not in VALID_IMAGE_MODES:
+            raise HTTPException(
+                status_code=422,
+                detail=f"Invalid images mode {images!r}. "
+                       f"Accepted: {', '.join(sorted(VALID_IMAGE_MODES))}",
             )
 
         SUPPORTED = {".docx", ".doc", ".odt", ".xlsx", ".xls", ".xlsm", ".csv",
@@ -275,8 +292,9 @@ def build_app():
                 )
 
         # ── Resolve LLM config with env var fallbacks ────────────────────────
-        resolved_key   = llm_api_key.strip() or settings.LLM_API_KEY
-        resolved_model = llm_model.strip()   or settings.LLM_MODEL
+        resolved_key      = llm_api_key.strip()  or settings.LLM_API_KEY
+        resolved_model    = llm_model.strip()    or settings.LLM_MODEL
+        resolved_base_url = llm_base_url.strip() or settings.LLM_BASE_URL
 
         if llm_merge_tables and not resolved_key:
             raise HTTPException(
@@ -298,10 +316,27 @@ def build_app():
                        "in your environment.",
             )
 
+        # Vision config — per-request form fields take precedence over env vars
+        resolved_vision_provider = ((vision_provider or "").strip() or settings.VISION_PROVIDER or "openai").strip() or None
+        resolved_vision_base_url = ((vision_base_url or "").strip() or settings.VISION_BASE_URL or settings.LLM_BASE_URL or "").strip() or None
+        resolved_vision_key      = ((vision_api_key or "").strip() or settings.VISION_API_KEY or resolved_key or "").strip() or None
+
+        if images == "caption" and not resolved_vision_key:
+            raise HTTPException(
+                status_code=422,
+                detail="images=caption requires an API key. Provide "
+                       "vision_api_key or llm_api_key as a form field, or set "
+                       "DISTILL_VISION_API_KEY in your environment.",
+            )
+
         llm_config = None
         if resolved_key and resolved_model:
             from distill.features.llm import LLMConfig
-            llm_config = LLMConfig(api_key=resolved_key, model=resolved_model)
+            llm_config = LLMConfig(
+                api_key=resolved_key,
+                model=resolved_model,
+                base_url=resolved_base_url or None,
+            )
 
         # Resolve audio options
         resolved_hf_token = hf_token.strip() or settings.HF_TOKEN or None
@@ -322,9 +357,15 @@ def build_app():
             return await _handle_async(
                 file_bytes, suffix, include_metadata, max_rows, enable_ocr,
                 extract_content, output_format, llm_merge_tables, llm_config,
+                images=images,
+                paginate_output=paginate_output,
+                vision_provider=resolved_vision_provider if images == "caption" else None,
+                vision_api_key=resolved_vision_key if images == "caption" else None,
+                vision_base_url=resolved_vision_base_url if images == "caption" else None,
                 transcription_engine=transcription_engine,
                 whisper_model=whisper_model,
                 hf_token=resolved_hf_token,
+                speaker_labels=speaker_labels,
                 topic_segmentation=topic_segmentation,
                 callback_url=callback_url,
                 queue_name=queue_name,
@@ -338,6 +379,12 @@ def build_app():
             return await _handle_async(file_bytes, suffix, include_metadata,
                                        max_rows, enable_ocr, extract_content,
                                        output_format, llm_merge_tables, llm_config,
+                                       images=images,
+                                       paginate_output=paginate_output,
+                                       vision_provider=resolved_vision_provider if images == "caption" else None,
+                                       vision_api_key=resolved_vision_key if images == "caption" else None,
+                                       vision_base_url=resolved_vision_base_url if images == "caption" else None,
+                                       speaker_labels=speaker_labels,
                                        topic_segmentation=topic_segmentation,
                                        callback_url=callback_url,
                                        queue_name=queue_name)
@@ -350,12 +397,18 @@ def build_app():
         try:
             options = ParseOptions(
                 max_table_rows=max_rows,
+                images=images,
+                vision_provider=resolved_vision_provider if images == "caption" else None,
+                vision_api_key=resolved_vision_key if images == "caption" else None,
+                vision_base_url=resolved_vision_base_url if images == "caption" else None,
                 extra={"enable_ocr": enable_ocr, "extract_content": extract_content},
                 output_format=output_format,
+                paginate_output=paginate_output,
                 llm_merge_tables=llm_merge_tables,
                 llm=llm_config,
                 extract=extract,
                 schema=parsed_schema,
+                speaker_labels=speaker_labels,
                 topic_segmentation=topic_segmentation,
             )
             result = _convert(
@@ -458,9 +511,15 @@ def build_app():
         output_format: str,
         llm_merge_tables: bool = False,
         llm_config=None,
+        images: str = "extract",
+        paginate_output: bool = False,
+        vision_provider: Optional[str] = None,
+        vision_api_key: Optional[str] = None,
+        vision_base_url: Optional[str] = None,
         transcription_engine: str = "whisper",
         whisper_model: str = "medium",
         hf_token: Optional[str] = None,
+        speaker_labels: bool = True,
         topic_segmentation: bool = False,
         callback_url: Optional[str] = None,
         queue_name: Optional[str] = None,
@@ -477,13 +536,19 @@ def build_app():
 
         options = ParseOptions(
             max_table_rows=max_rows,
+            images=images,
+            vision_provider=vision_provider,
+            vision_api_key=vision_api_key,
+            vision_base_url=vision_base_url,
             extra={"enable_ocr": enable_ocr, "extract_content": extract_content},
             output_format=output_format,
+            paginate_output=paginate_output,
             llm_merge_tables=llm_merge_tables,
             llm=llm_config,
             transcription_engine=transcription_engine,
             whisper_model=whisper_model,
             hf_token=hf_token,
+            speaker_labels=speaker_labels,
             topic_segmentation=topic_segmentation,
         )
         options_dict = serialise_options(options)

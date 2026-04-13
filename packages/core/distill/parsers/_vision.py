@@ -105,6 +105,90 @@ def caption_images(doc: Document, options: ParseOptions) -> None:
         )
 
 
+# ── Per-image captioning (from raw bytes) ────────────────────────────────────
+
+def caption_image(
+    image_bytes: bytes,
+    provider: str,
+    model: Optional[str] = None,
+    api_key: Optional[str] = None,
+    base_url: Optional[str] = None,
+) -> Optional[str]:
+    """
+    Caption a single image from raw bytes using the specified vision provider.
+
+    Returns the caption string, or None if captioning fails.
+    Raises ImportError if the provider SDK is not installed.
+    """
+    provider = provider.lower().strip()
+    model = model or _DEFAULT_MODEL.get(provider)
+    b64_data = base64.standard_b64encode(image_bytes).decode("ascii")
+    media_type = "image/png"  # safe default; providers accept any common type
+
+    if provider == "openai":
+        import openai
+        client_kwargs: dict = {}
+        if api_key:
+            client_kwargs["api_key"] = api_key
+        if base_url:
+            client_kwargs["base_url"] = base_url
+        client = openai.OpenAI(**client_kwargs)
+        response = client.chat.completions.create(
+            model=model,
+            messages=[{
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": _CAPTION_PROMPT},
+                    {"type": "image_url", "image_url": {
+                        "url": f"data:{media_type};base64,{b64_data}",
+                        "detail": "low",
+                    }},
+                ],
+            }],
+            max_tokens=150,
+        )
+        return response.choices[0].message.content.strip()
+
+    elif provider == "anthropic":
+        import anthropic as anthropic_sdk
+        client = (
+            anthropic_sdk.Anthropic(api_key=api_key)
+            if api_key
+            else anthropic_sdk.Anthropic()
+        )
+        response = client.messages.create(
+            model=model,
+            max_tokens=150,
+            messages=[{
+                "role": "user",
+                "content": [
+                    {"type": "image", "source": {
+                        "type": "base64",
+                        "media_type": media_type,
+                        "data": b64_data,
+                    }},
+                    {"type": "text", "text": _CAPTION_PROMPT},
+                ],
+            }],
+        )
+        return response.content[0].text.strip()
+
+    elif provider == "ollama":
+        import ollama
+        client = ollama.Client(host="http://localhost:11434")
+        response = client.chat(
+            model=model,
+            messages=[{
+                "role": "user",
+                "content": _CAPTION_PROMPT,
+                "images": [b64_data],
+            }],
+        )
+        return response["message"]["content"].strip()
+
+    return None
+
+
 # ── Image collection ──────────────────────────────────────────────────────────
 
 def _collect_images(doc: Document) -> list[Image]:
@@ -158,7 +242,13 @@ def _caption_via_openai(
             api_key = _settings.VISION_API_KEY or None
         except ImportError:
             pass
-    client = openai.OpenAI(api_key=api_key) if api_key else openai.OpenAI()
+    base_url = getattr(options, "vision_base_url", None) or options.extra.get("vision_base_url")
+    client_kwargs: dict = {}
+    if api_key:
+        client_kwargs["api_key"] = api_key
+    if base_url:
+        client_kwargs["base_url"] = base_url
+    client = openai.OpenAI(**client_kwargs)
 
     for img in images:
         try:

@@ -38,9 +38,12 @@ from distill.ir import (
     BlockQuote, Document, DocumentMetadata, Image, ImageType,
     List, ListItem, Paragraph, Section, Table, TableCell, TableRow, TextRun,
 )
-from distill.parsers.base import ParseError, ParseOptions, Parser
+from distill.parsers.base import ParseError, ParseOptions, Parser, extract_image
 from distill.registry import registry
 
+
+# Placeholder indices for footer region shapes — suppress from output
+_FOOTER_PLACEHOLDER_INDICES = frozenset({11, 12, 13})
 
 # ── Security constants ────────────────────────────────────────────────────────
 
@@ -145,6 +148,16 @@ def _compute_word_count(prs) -> int:
     return total
 
 
+def _get_first_font_size_pt(text_frame):
+    """Return font size in points from the first run of the first non-empty
+    paragraph in the text frame. Returns None if no explicit size is set."""
+    for para in text_frame.paragraphs:
+        for run in para.runs:
+            if run.font.size:
+                return run.font.size / 12700  # EMU to points
+    return None
+
+
 # ── Parser ────────────────────────────────────────────────────────────────────
 
 @registry.register
@@ -191,9 +204,18 @@ class PptxParser(Parser):
         metadata.word_count = _compute_word_count(prs) or None
         document    = Document(metadata=metadata)
 
+        slide_width = prs.slide_width
+        slide_height = prs.slide_height
+
         for slide_num, slide in enumerate(prs.slides, start=1):
-            section = self._parse_slide(slide, slide_num, options, document)
-            document.sections.append(section)
+            section = self._parse_slide(slide, slide_num, options, document, slide_width, slide_height)
+            if section.blocks:
+                document.sections.append(section)
+            else:
+                # Only suppress if heading is the generic "Slide N" fallback
+                heading_text = section.heading[0].text if section.heading else ""
+                if not re.match(r"^Slide \d+$", heading_text):
+                    document.sections.append(section)
 
         return document
 
@@ -205,23 +227,56 @@ class PptxParser(Parser):
         slide_num: int,
         options: ParseOptions,
         doc: Document,
+        slide_width: int = 0,
+        slide_height: int = 0,
     ) -> Section:
         from pptx.enum.shapes import MSO_SHAPE_TYPE
+        from distill.parsers.base import classify_image
 
-        title_text = self._get_slide_title(slide)
-        heading    = f"Slide {slide_num}: {title_text}" if title_text else f"Slide {slide_num}"
+        title_text, title_shape_used = self._get_slide_title(slide, slide_height)
+        heading = title_text if title_text else f"Slide {slide_num}"
 
         section = Section(
             heading=[TextRun(text=heading)],
             level=2,
         )
 
-        title_shape = slide.shapes.title
+        title_placeholder = slide.shapes.title
+        # Collect XML elements to skip — python-pptx creates new wrapper
+        # objects on each access, so identity checks on shape objects fail.
+        # Comparing the underlying lxml _element is stable.
+        _skip_elements = set()
+        if title_placeholder is not None:
+            _skip_elements.add(id(title_placeholder._element))
+        if title_shape_used is not None:
+            _skip_elements.add(id(title_shape_used._element))
+
+        source_stem = (
+            Path(doc.metadata.source_path).stem
+            if doc.metadata.source_path
+            else "file"
+        )
+        image_index = 0
 
         for shape in slide.shapes:
-            # Skip the title shape — its text is already in the heading
-            if shape is title_shape:
+            # Skip shapes whose text is already in the heading
+            if id(shape._element) in _skip_elements:
+                # Still parse remaining paragraphs if the shape has more
+                # content beyond the title line (e.g. bullet lists)
+                if shape.has_text_frame and len(shape.text_frame.paragraphs) > 1:
+                    blocks = self._parse_text_frame(
+                        shape.text_frame, skip_first=True,
+                    )
+                    section.blocks.extend(blocks)
                 continue
+
+            # Skip footer, date, and slide-number placeholders
+            if shape.is_placeholder:
+                try:
+                    if shape.placeholder_format.idx in _FOOTER_PLACEHOLDER_INDICES:
+                        continue
+                except Exception:
+                    pass  # placeholder_format may raise on malformed shapes
 
             if shape.has_text_frame:
                 blocks = self._parse_text_frame(shape.text_frame)
@@ -233,11 +288,75 @@ class PptxParser(Parser):
 
             elif hasattr(shape, "shape_type"):
                 if shape.shape_type == MSO_SHAPE_TYPE.PICTURE:
-                    img = Image(
-                        image_type=ImageType.UNKNOWN,
-                        alt_text=shape.name or None,
+                    if options.images == "suppress":
+                        continue
+
+                    # Classify before blob read to avoid unnecessary ZIP reads
+                    image_type = classify_image(
+                        mode="pptx",
+                        shape_w=shape.width,
+                        shape_h=shape.height,
+                        slide_w=slide_width,
+                        slide_h=slide_height,
+                        name=getattr(shape, "name", "") or "",
                     )
-                    section.blocks.append(img)
+
+                    if image_type == ImageType.DECORATIVE:
+                        doc.metadata.decorative_images_filtered += 1
+                        continue
+
+                    image_node = Image(
+                        image_type=image_type,
+                        alt_text=(
+                            self._get_shape_descr(shape)
+                            or (getattr(shape, "name", None) or "").strip()
+                            or None
+                        ),
+                    )
+
+                    # Extract image bytes from shape
+                    try:
+                        image_bytes = shape.image.blob
+                        image_ext = getattr(shape.image, "ext", "png")
+                    except Exception:
+                        image_bytes = None
+                        image_ext = "png"
+
+                    if image_bytes and options.images in ("extract", "caption") and options.image_dir:
+                        filename = f"{source_stem}_{slide_num}_{image_index}"
+                        path = extract_image(
+                            image_bytes=image_bytes,
+                            ext=image_ext,
+                            image_dir=Path(options.image_dir),
+                            filename=filename,
+                            collector=getattr(options, "collector", None),
+                        )
+                        if path:
+                            image_node.path = path
+
+                    # Vision captioning hookup
+                    if options.images == "caption" and options.vision_provider and image_bytes:
+                        try:
+                            from distill.parsers._vision import caption_image
+                            caption = caption_image(
+                                image_bytes=image_bytes,
+                                provider=options.vision_provider,
+                                model=options.extra.get("vision_model") or None,
+                                api_key=options.vision_api_key,
+                                base_url=options.vision_base_url,
+                            )
+                            if caption:
+                                image_node.caption = caption
+                        except Exception as e:
+                            if getattr(options, "collector", None) is not None:
+                                from distill.warnings import ConversionWarning, WarningType
+                                options.collector.add(ConversionWarning(
+                                    type=WarningType.vision_caption_failed,
+                                    message=f"Vision captioning failed for slide {slide_num} image {image_index}: {e}",
+                                ))
+
+                    section.blocks.append(image_node)
+                    image_index += 1
 
         # Speaker notes appended as a block quote
         if slide.has_notes_slide:
@@ -250,25 +369,94 @@ class PptxParser(Parser):
 
         return section
 
-    def _get_slide_title(self, slide) -> Optional[str]:
+    def _get_slide_title(self, slide, slide_height: int = 0) -> tuple[Optional[str], Optional[object]]:
+        # Primary: standard PowerPoint title placeholder
         try:
             title = slide.shapes.title
-            if title and title.text:
-                return title.text.strip()
+            if title and title.text and title.text.strip():
+                return title.text.strip(), title
         except Exception:
             pass
-        return None
 
-    def _parse_text_frame(self, text_frame) -> list:
+        # Heuristic fallback: position + font size
+        # Prefer shapes in the top 15% of the slide with font size >= 20pt
+        if slide_height > 0:
+            candidates = []
+            for shape in slide.shapes:
+                if not shape.has_text_frame:
+                    continue
+                text = shape.text_frame.text.strip()
+                if not text or len(text) > 120:
+                    continue
+                if shape.top is None:
+                    continue
+                # Skip bullet text frames
+                if self._is_bullet_text_frame(shape):
+                    continue
+                top_ratio = shape.top / slide_height
+                if top_ratio >= 0.15:
+                    continue
+                font_pt = _get_first_font_size_pt(shape.text_frame)
+                if font_pt is None or font_pt < 20:
+                    continue
+                candidates.append((shape, font_pt))
+
+            if candidates:
+                # Largest font first, then highest on slide (smallest top)
+                candidates.sort(key=lambda x: (-x[1], x[0].top))
+                best_shape = candidates[0][0]
+                first_line = best_shape.text_frame.text.strip().splitlines()[0].strip()
+                return first_line, best_shape
+
+        # Original z-order-first fallback (skip bullet text frames)
+        try:
+            from pptx.oxml.ns import qn as _qn
+            for shape in slide.shapes:
+                if not shape.has_text_frame:
+                    continue
+                text = shape.text_frame.text.strip()
+                if not text:
+                    continue
+                if self._is_bullet_text_frame(shape):
+                    continue
+                first_line = text.splitlines()[0].strip()
+                if first_line and len(first_line) <= 80:
+                    return first_line, shape
+        except Exception:
+            pass
+
+        return None, None
+
+    def _is_bullet_text_frame(self, shape) -> bool:
+        """Check if a shape's first paragraph is a bullet (used to skip in title extraction)."""
+        try:
+            from pptx.oxml.ns import qn as _qn
+            first_para = shape.text_frame.paragraphs[0]
+            _pPr = first_para._p.find(_qn("a:pPr"))
+            if _pPr is not None:
+                if (_pPr.find(_qn("a:buChar")) is not None
+                        or _pPr.find(_qn("a:buAutoNum")) is not None):
+                    if _pPr.find(_qn("a:buNone")) is None:
+                        return True
+        except Exception:
+            pass
+        return False
+
+    def _parse_text_frame(self, text_frame, skip_first: bool = False) -> list:
         blocks: list = []
-        items:  list = []
+        # Accumulate (level, runs, ordered) tuples for consecutive bullet paragraphs
+        bullet_acc: list[tuple[int, list, bool]] = []
+        first_skipped = False
 
         for para in text_frame.paragraphs:
             text = para.text.strip()
             if not text:
                 continue
 
-            level = para.level  # 0 = body, 1+ = indented bullet
+            # Skip the first non-empty paragraph (already used as slide title)
+            if skip_first and not first_skipped:
+                first_skipped = True
+                continue
 
             runs = [
                 TextRun(
@@ -282,20 +470,59 @@ class PptxParser(Parser):
             if not runs:
                 runs = [TextRun(text=text)]
 
-            is_bullet = level > 0 or self._looks_like_bullet(para)
+            is_bullet, is_ordered = self._detect_bullet(para)
 
             if is_bullet:
-                items.append(ListItem(content=runs))
+                bullet_acc.append((para.level, runs, is_ordered))
             else:
-                if items:
-                    blocks.append(List(items=items))
-                    items = []
+                if bullet_acc:
+                    blocks.append(self._build_list_from_flat(bullet_acc))
+                    bullet_acc = []
                 blocks.append(Paragraph(runs=runs))
 
-        if items:
-            blocks.append(List(items=items))
+        if bullet_acc:
+            blocks.append(self._build_list_from_flat(bullet_acc))
 
         return blocks
+
+    def _build_list_from_flat(
+        self, items: list[tuple[int, list, bool]]
+    ) -> List:
+        """Convert flat (level, runs, ordered) tuples into a nested List IR."""
+        # Determine ordered: if any item uses buAutoNum use ordered,
+        # but if mixed, default to unordered
+        all_ordered = all(o for _, _, o in items)
+        any_ordered = any(o for _, _, o in items)
+        ordered = all_ordered  # mixed = unordered (safe default)
+
+        root = List(items=[], ordered=ordered)
+        # Stack of (List node, level) for building nesting
+        stack: list[tuple[List, int]] = [(root, 0)]
+
+        for level, runs, _ in items:
+            # Find or create the correct nesting depth
+            while len(stack) > 1 and stack[-1][1] > level:
+                stack.pop()
+
+            parent_list = stack[-1][0]
+            item = ListItem(content=runs)
+            parent_list.items.append(item)
+
+            # Prepare for potential children at deeper levels
+            child_list = List(items=[], ordered=ordered)
+            item.children.append(child_list)
+            stack.append((child_list, level + 1))
+
+        # Clean up empty child lists
+        self._prune_empty_lists(root)
+        return root
+
+    def _prune_empty_lists(self, lst: List) -> None:
+        """Remove empty child List nodes added speculatively."""
+        for item in lst.items:
+            item.children = [c for c in item.children if c.items]
+            for child in item.children:
+                self._prune_empty_lists(child)
 
     def _parse_table(self, tbl, options: ParseOptions) -> Table:
         rows: list[TableRow] = []
@@ -312,16 +539,42 @@ class PptxParser(Parser):
             rows.append(TableRow(cells=cells))
         return Table(rows=rows)
 
-    def _looks_like_bullet(self, para) -> bool:
-        """Heuristic: paragraph has a bullet character or auto-number XML marker."""
+    def _detect_bullet(self, para) -> tuple[bool, bool]:
+        """
+        Detect whether a paragraph is a bullet and whether it is ordered.
+
+        Returns (is_bullet, is_ordered).  Checks <a:buChar> and <a:buAutoNum>
+        inside <a:pPr>, and also treats para.level > 0 as a bullet (indented
+        paragraphs in content placeholders).  <a:buNone> suppresses bullets.
+        """
         try:
             from pptx.oxml.ns import qn
-            return (
-                para._p.find(qn("a:buChar"))    is not None or
-                para._p.find(qn("a:buAutoNum")) is not None
-            )
+            pPr = para._p.find(qn("a:pPr"))
+            if pPr is not None:
+                has_buNone = pPr.find(qn("a:buNone")) is not None
+                if has_buNone:
+                    return (False, False)
+                has_buChar = pPr.find(qn("a:buChar")) is not None
+                has_buAutoNum = pPr.find(qn("a:buAutoNum")) is not None
+                if has_buChar or has_buAutoNum:
+                    is_ordered = has_buAutoNum and not has_buChar
+                    return (True, is_ordered)
+            # Indented paragraphs (level > 0) are also treated as bullets
+            if para.level > 0:
+                return (True, False)
+            return (False, False)
         except Exception:
-            return False
+            return (False, False)
+
+    def _get_shape_descr(self, shape) -> str:
+        """Read the author-provided alt text (descr attribute) from a shape's XML.
+        Returns stripped string or empty string if not available."""
+        try:
+            cNvPr = shape._element.nvPicPr.cNvPr
+            descr = cNvPr.get("descr") or ""
+            return descr.strip()
+        except Exception:
+            return ""
 
 
 # ── Legacy parser ─────────────────────────────────────────────────────────────

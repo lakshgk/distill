@@ -485,6 +485,9 @@ conversion pipeline.
 | `audio_model_missing` | Audio parser | pyannote diarization model unavailable; speaker labels omitted |
 | `table_truncated` | XLSX/PDF parser | Table exceeded `max_table_rows` and was truncated |
 | `content_extracted` | HTML parser | Boilerplate removal applied; some content may have been stripped |
+| `font_encoding_unsupported` | PDF parser | Non-Unicode custom font encoding detected; text may be garbled |
+| `vision_caption_failed` | DOCX/PPTX/PDF parser | Vision captioning failed for an image |
+| `image_write_failed` | Image extraction | Failed to write extracted image to disk |
 
 ### How warnings flow
 

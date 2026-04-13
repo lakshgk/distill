@@ -92,6 +92,20 @@ class TestRenderer:
         assert "![A bar chart](images/fig1.png)" in md
 
 
+class TestIRDefaults:
+    def test_table_default_flags(self):
+        t = Table()
+        assert t.merged_cells is False
+        assert t.complex_headers is False
+
+    def test_image_default_fields(self):
+        img = Image()
+        assert img.path is None
+        assert img.caption is None
+        assert img.ocr_text is None
+        assert img.alt_text is None
+
+
 class TestQuality:
     def test_perfect_score_simple_doc(self):
         from distill.quality import score

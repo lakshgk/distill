@@ -28,7 +28,7 @@ from distill.ir import (
     BlockQuote, CodeBlock, Document, DocumentMetadata, Image, ImageType,
     List, ListItem, Paragraph, Section, Table, TableCell, TableRow, TextRun,
 )
-from distill.parsers.base import ParseError, ParseOptions, Parser, UnsupportedFormatError
+from distill.parsers.base import ParseError, ParseOptions, Parser, UnsupportedFormatError, extract_image
 from distill.registry import registry
 
 
@@ -213,6 +213,15 @@ def _html_to_sections(html: str) -> list[Section]:
             if current is None:
                 current = Section(level=0)
                 sections.append(current)
+
+            # Extract <img> children inside <p> elements
+            if tag == "p":
+                for child in elem:
+                    if child.tag.lower() == "img":
+                        img_block = _parse_block(child)
+                        if img_block is not None:
+                            current.blocks.append(img_block)
+
             block = _parse_block(elem)
             if block is not None:
                 current.blocks.append(block)
@@ -379,13 +388,16 @@ class DocxParser(Parser):
         metadata = _extract_metadata(path) if path else DocumentMetadata(source_format="docx")
 
         # ── mammoth: .docx → HTML ─────────────────────────────────────────────
+        # Explicit style map ensures Heading 1 always maps to <h1>, regardless
+        # of any embedded style map in the document that might demote it.
+        _style_map = "p[style-name='Heading 1'] => h1:fresh"
         try:
             if path:
                 with open(path, "rb") as f:
-                    result = mammoth.convert_to_html(f)
+                    result = mammoth.convert_to_html(f, style_map=_style_map)
             else:
                 import io
-                result = mammoth.convert_to_html(io.BytesIO(source))
+                result = mammoth.convert_to_html(io.BytesIO(source), style_map=_style_map)
         except Exception as e:
             raise ParseError(f"mammoth failed: {e}") from e
 
@@ -420,6 +432,9 @@ class DocxParser(Parser):
 
         document.sections.extend(sections)
 
+        # Image wiring — post-process Image nodes created by mammoth HTML
+        self._wire_images(document, source, path, options)
+
         # Math detection — check for OMML math elements
         if options and options.collector and path:
             try:
@@ -429,6 +444,100 @@ class DocxParser(Parser):
                 pass
 
         return document
+
+
+    def _wire_images(
+        self,
+        document: Document,
+        source: Union[str, Path, bytes],
+        path: Optional[Path],
+        options: ParseOptions,
+    ) -> None:
+        """Post-process Image nodes: classify, suppress, extract from ZIP, or caption."""
+        from distill.parsers.base import classify_image
+
+        # Collect all Image nodes from the IR
+        image_nodes: list[Image] = []
+        for section in document.sections:
+            for block in section.blocks:
+                if isinstance(block, Image):
+                    image_nodes.append(block)
+
+        if options.images == "suppress":
+            for section in document.sections:
+                section.blocks = [b for b in section.blocks if not isinstance(b, Image)]
+            return
+
+        # Classify and remove decorative images
+        for img in image_nodes:
+            img_type = classify_image(mode="docx", alt=getattr(img, "alt_text", "") or "")
+            if img_type == ImageType.DECORATIVE:
+                img.image_type = img_type
+                document.metadata.decorative_images_filtered += 1
+        # Remove decorative nodes from the IR
+        for section in document.sections:
+            section.blocks = [
+                b for b in section.blocks
+                if not (isinstance(b, Image) and b.image_type == ImageType.DECORATIVE)
+            ]
+        # Rebuild list without decorative
+        image_nodes = [img for img in image_nodes if img.image_type != ImageType.DECORATIVE]
+
+        if not image_nodes:
+            return
+
+        # Extract media files from the .docx ZIP
+        source_stem = Path(str(path)).stem if path else "file"
+        media_files: list[tuple[str, bytes]] = []
+        try:
+            raw = source if isinstance(source, bytes) else Path(source).read_bytes()
+            with zipfile.ZipFile(io.BytesIO(raw)) as zf:
+                for name in sorted(zf.namelist()):
+                    if name.startswith("word/media/"):
+                        media_files.append((name, zf.read(name)))
+        except Exception:
+            pass
+
+        # Match media files to Image nodes by order
+        for idx, (media_path, image_bytes) in enumerate(media_files):
+            if idx >= len(image_nodes):
+                break
+
+            image_node = image_nodes[idx]
+            ext = Path(media_path).suffix.lstrip(".")
+
+            if options.images in ("extract", "caption") and options.image_dir:
+                filename = f"{source_stem}_0_{idx}"
+                written = extract_image(
+                    image_bytes=image_bytes,
+                    ext=ext,
+                    image_dir=Path(options.image_dir),
+                    filename=filename,
+                    collector=getattr(options, "collector", None),
+                )
+                if written:
+                    image_node.path = written
+
+            # Vision captioning hookup
+            if options.images == "caption" and options.vision_provider and image_bytes:
+                try:
+                    from distill.parsers._vision import caption_image
+                    caption = caption_image(
+                        image_bytes=image_bytes,
+                        provider=options.vision_provider,
+                        model=options.extra.get("vision_model") or None,
+                        api_key=options.vision_api_key,
+                        base_url=options.vision_base_url,
+                    )
+                    if caption:
+                        image_node.caption = caption
+                except Exception as e:
+                    if getattr(options, "collector", None) is not None:
+                        from distill.warnings import ConversionWarning, WarningType
+                        options.collector.add(ConversionWarning(
+                            type=WarningType.vision_caption_failed,
+                            message=f"Vision captioning failed for document image {idx}: {e}",
+                        ))
 
 
 @registry.register

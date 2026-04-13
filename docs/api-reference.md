@@ -22,19 +22,53 @@ Content-Type: `multipart/form-data`
 | `output_format` | string | `"markdown"` | No | Output format. One of: `markdown`, `chunks`, `json`, `html`. |
 | `include_metadata` | boolean | `true` | No | Include document metadata (word count, page count, etc.) in the conversion. |
 | `max_rows` | integer | `500` | No | Maximum number of table rows to include per table. |
+| `paginate_output` | boolean | `false` | No | Insert page separators (`---` + `*Page N*`) at page boundaries in the output. PDF and DOCX only; silently ignored for formats without page metadata. |
+| `images` | string | `"extract"` | No | How to handle images found in the source. One of `suppress`, `extract`, `inline_ocr`, `caption`. `caption` requires an LLM API key — see the [LLM Configuration](#llm-configuration) section below. |
 | `enable_ocr` | boolean | `false` | No | Enable OCR for scanned pages. |
 | `extract_content` | boolean | `false` | No | Enable content extraction mode. |
 | `llm_merge_tables` | boolean | `false` | No | Use an LLM to merge split tables. Requires `llm_api_key` and `llm_model`. |
 | `llm_api_key` | string | `""` | No | API key for LLM features. Falls back to the `DISTILL_LLM_API_KEY` environment variable. |
 | `llm_model` | string | `""` | No | LLM model identifier. Falls back to the `DISTILL_LLM_MODEL` environment variable. |
+| `llm_base_url` | string | `""` | No | Base URL for any OpenAI-compatible endpoint (e.g. `https://api.openai.com/v1`, a self-hosted Ollama URL, Azure OpenAI). Falls back to the `DISTILL_LLM_BASE_URL` environment variable. Required at call time by any LLM-dependent feature — see [LLM Configuration](#llm-configuration). |
 | `extract` | boolean | `false` | No | Enable structured data extraction. Requires `schema`, `llm_api_key`, and `llm_model`. |
 | `schema` | string | `""` | No | JSON object defining the extraction schema. Required when `extract=true`. Must be a non-empty JSON object. |
 | `transcription_engine` | string | `"whisper"` | No | Transcription engine for audio files. One of: `whisper`, `vosk`. |
 | `whisper_model` | string | `"base"` | No | Whisper model size. |
+| `speaker_labels` | boolean | `true` | No | Audio only. When `false`, speaker diarization is skipped and transcripts are returned without `Speaker A / Speaker B` prefixes. Transcription still runs normally. Silently ignored for non-audio input. |
 | `hf_token` | string | `""` | No | Hugging Face token for gated model access. Falls back to the `HF_TOKEN` environment variable. |
 | `topic_segmentation` | boolean | `false` | No | Enable topic segmentation for audio transcriptions. Requires an LLM API key. |
 | `callback_url` | string | `null` | No | HTTPS URL to receive the job result via webhook POST when async processing completes. Must use HTTPS and must not target private/reserved IP ranges. |
 | `priority` | string | `null` | No | Queue priority override. One of: `interactive`, `batch`. When omitted, routing is automatic based on file size and type. |
+
+#### LLM Configuration
+
+Four features share a single LLM configuration: cross-page table merging
+(`llm_merge_tables`), structured extraction (`extract`), audio topic
+segmentation (`topic_segmentation`), and AI image captioning
+(`images=caption`). All three fields below are first-class per-request form
+fields on `POST /api/convert`:
+
+| Field | Env var fallback | Description |
+|---|---|---|
+| `llm_api_key` | `DISTILL_LLM_API_KEY` | API key for any OpenAI-compatible LLM endpoint. Also used as the vision provider key when `images=caption` (see below). |
+| `llm_model` | `DISTILL_LLM_MODEL` | Model identifier, e.g. `gpt-4o`, `claude-3-5-sonnet-latest`, `llama3:70b`. |
+| `llm_base_url` | `DISTILL_LLM_BASE_URL` | Base URL for the OpenAI-compatible endpoint — `/chat/completions` is appended automatically. Examples: `https://api.openai.com/v1`, `http://localhost:11434/v1` (Ollama), `https://your-resource.openai.azure.com/openai/deployments/your-deployment` (Azure OpenAI). |
+
+**Precedence.** A per-request field value always takes precedence over the
+corresponding server-side environment variable. Leave a field empty in the
+request to fall through to the env var. This allows the operator to set a
+default key and let individual callers override it without re-deployment.
+
+**Required state.** The LLM client requires a base URL at call time. If
+neither `llm_base_url` nor `DISTILL_LLM_BASE_URL` is set, any LLM-dependent
+feature raises a clear error before the outbound request is made.
+
+**Vision captioning.** When `images=caption`, the same `llm_api_key` is
+passed to the vision provider. The provider defaults to OpenAI; set
+`DISTILL_VISION_PROVIDER` server-side to override (`openai`, `anthropic`, or
+`ollama`). `DISTILL_VISION_API_KEY` is also honoured and wins over
+`llm_api_key` if set. A request with `images=caption` and no resolvable key
+returns HTTP 422.
 
 ### Synchronous Response (200 OK)
 
@@ -181,6 +215,8 @@ Each element in the `warnings` array is an object:
 |---|---|---|
 | 400 | Unsupported file extension | `"Unsupported format: '.bmp'. Supported: .csv, .doc, ..."` |
 | 422 | Invalid `output_format` | `"Invalid output_format 'xml'. Accepted: chunks, html, json, markdown"` |
+| 422 | Invalid `images` value | `"Invalid images mode 'bogus'. Accepted: caption, extract, inline_ocr, suppress"` |
+| 422 | `images=caption` without API key | `"images=caption requires an LLM API key. Provide llm_api_key as a form field or set DISTILL_VISION_API_KEY or DISTILL_LLM_API_KEY in your environment."` |
 | 422 | Invalid `priority` | `"priority must be 'interactive' or 'batch'"` |
 | 422 | Invalid `callback_url` | `"callback_url must use https"` |
 | 422 | `extract=true` without schema | `"extract=True requires a non-empty schema"` |
@@ -217,6 +253,28 @@ curl -X POST http://localhost:7860/api/convert \
   -F "file=@recording.mp3" \
   -F "callback_url=https://example.com/webhook" \
   -F "priority=batch"
+
+# LLM-powered cross-page table merging with a custom OpenAI-compatible endpoint
+curl -X POST http://localhost:7860/api/convert \
+  -F "file=@report.pdf" \
+  -F "llm_merge_tables=true" \
+  -F "llm_api_key=sk-..." \
+  -F "llm_model=gpt-4o" \
+  -F "llm_base_url=https://api.openai.com/v1"
+
+# AI image captioning reusing the same key for vision
+curl -X POST http://localhost:7860/api/convert \
+  -F "file=@diagram.pdf" \
+  -F "images=caption" \
+  -F "llm_api_key=sk-..." \
+  -F "llm_model=gpt-4o" \
+  -F "llm_base_url=https://api.openai.com/v1"
+
+# Audio transcription without speaker diarization, with pagination
+curl -X POST http://localhost:7860/api/convert \
+  -F "file=@interview.mp3" \
+  -F "speaker_labels=false" \
+  -F "paginate_output=true"
 ```
 
 ---

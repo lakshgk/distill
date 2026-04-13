@@ -633,3 +633,119 @@ class TestXlsmSupport:
         XlsxParser().parse(data, options=opts)
         warnings = opts.collector.to_dict()
         assert not any("macro" in w.get("message", "").lower() for w in warnings)
+
+
+# ── Formula string annotation ───────────────────────────────────────────────
+
+class TestFormulaAnnotation:
+    def test_formula_string_annotated(self):
+        """Formula strings stored as plain text are annotated, not leaked raw."""
+        import openpyxl
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "S"
+        ws.append(["Label", "Value"])
+        # Write formula as a plain text string (not an Excel formula)
+        ws["A2"] = "Total"
+        ws["B2"] = "=SUM(A1:A10)"
+        ws["B2"].data_type = "s"  # force string type so openpyxl doesn't treat as formula
+
+        buf = io.BytesIO()
+        wb.save(buf)
+        doc = XlsxParser().parse(buf.getvalue())
+        md = doc.render(front_matter=False)
+
+        assert "[formula: =SUM(A1:A10)]" in md, (
+            f"Expected formula annotation in output, got:\n{md}"
+        )
+        lines_with_raw = [l for l in md.splitlines() if "=SUM(A1:A10)" in l and "[formula:" not in l]
+        assert not lines_with_raw, (
+            f"Raw formula string leaked into output:\n{lines_with_raw}"
+        )
+
+
+# ── Blank trailing row stripping ─────────────────────────────────────────────
+
+class TestBlankTrailingRows:
+    def test_blank_trailing_rows_stripped(self):
+        """Completely empty trailing rows are removed from the table."""
+        data = _make_xlsx(sheets={"S": [
+            ["Name", "Amount"],
+            ["Alpha", "100"],
+            ["Beta", "200"],
+            ["", ""],
+            ["", ""],
+            ["", ""],
+        ]})
+        doc = XlsxParser().parse(data)
+        md = doc.render(front_matter=False)
+
+        table_rows = [
+            l for l in md.splitlines()
+            if l.strip().startswith("|") and "---" not in l
+        ]
+        assert len(table_rows) == 3, (
+            f"Expected 3 table rows (header + 2 data), got {len(table_rows)}:\n{md}"
+        )
+
+    def test_partial_row_not_stripped(self):
+        """A row with some empty cells but not all must be preserved."""
+        data = _make_xlsx(sheets={"S": [
+            ["Name", "Q1", "Q2"],
+            ["Alpha", "100", ""],
+            ["Beta", "", "200"],
+        ]})
+        doc = XlsxParser().parse(data)
+        md = doc.render(front_matter=False)
+
+        table_rows = [
+            l for l in md.splitlines()
+            if l.strip().startswith("|") and "---" not in l
+        ]
+        assert len(table_rows) == 3, (
+            f"Expected 3 rows (header + 2 data), got {len(table_rows)}:\n{md}"
+        )
+
+
+# ── Datetime header formatting ───────────────────────────────────────────────
+
+class TestDatetimeHeaders:
+    def test_datetime_header_month_format(self):
+        """Month-level datetime headers (day==1) render as 'Mon YYYY'."""
+        from datetime import datetime
+
+        import openpyxl
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.cell(row=1, column=1).value = "Category"
+        ws.cell(row=1, column=2).value = datetime(2026, 1, 1, 0, 0, 0)
+        ws.cell(row=1, column=3).value = datetime(2026, 2, 1, 0, 0, 0)
+        ws.append(["Alpha", 100, 200])
+
+        buf = io.BytesIO()
+        wb.save(buf)
+        doc = XlsxParser().parse(buf.getvalue())
+        md = doc.render(front_matter=False)
+
+        assert "Jan 2026" in md, f"Expected 'Jan 2026' header, got:\n{md}"
+        assert "Feb 2026" in md, f"Expected 'Feb 2026' header, got:\n{md}"
+        assert "2026-01-01 00:00:00" not in md, f"Raw timestamp leaked into header:\n{md}"
+
+    def test_datetime_header_specific_date_format(self):
+        """Specific-date headers (day!=1) render as 'YYYY-MM-DD'."""
+        from datetime import datetime
+
+        import openpyxl
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.cell(row=1, column=1).value = "Event"
+        ws.cell(row=1, column=2).value = datetime(2026, 1, 15, 0, 0, 0)
+        ws.append(["Launch", "Done"])
+
+        buf = io.BytesIO()
+        wb.save(buf)
+        doc = XlsxParser().parse(buf.getvalue())
+        md = doc.render(front_matter=False)
+
+        assert "2026-01-15" in md, f"Expected '2026-01-15' for specific date header, got:\n{md}"
+        assert "2026-01-15 00:00:00" not in md, f"Full timestamp should not appear:\n{md}"

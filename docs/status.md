@@ -3,7 +3,7 @@
 This document tracks every feature that has been built, tested, and confirmed.
 It is updated after each feature is verified by the developer.
 
-Last updated: 2026-04-06
+Last updated: 2026-04-13
 
 ---
 
@@ -47,7 +47,7 @@ Last updated: 2026-04-06
 |---------|--------|-------|
 | Cross-page table merging | Shipped | PDF only, requires LLM config |
 | Structured JSON extraction | Shipped | Schema-driven extraction via LLM |
-| Math detection | Shipped | PDF (font/Unicode) and DOCX (OMML) |
+| Math detection | Shipped | PDF (font/Unicode with density threshold) and DOCX (OMML) |
 | Audio topic segmentation | Shipped | Batched LLM calls for topic headings |
 
 ### Quality & Warnings
@@ -67,6 +67,10 @@ Last updated: 2026-04-06
 | Vision captioning | Shipped | OpenAI / Anthropic / Ollama backends, requires `[vision]` |
 | Metadata extraction | Shipped | YAML front-matter via `include_metadata=True` |
 | Merged cell expansion | Shipped | XLSX merged cells fully populated |
+| PDF quality backlog | Shipped | Rotated text, table filters, heading detection, cross-page tables, footer suppression, font encoding warning |
+| PPTX quality backlog | Shipped | Bullet lists, heuristic titles, alt text, footer placeholders |
+| DOCX H1 demotion fix | Shipped | Explicit mammoth style map for Heading 1 |
+| XLSX quality backlog | Shipped | Formula annotation, ghost rows, datetime headers |
 
 ---
 

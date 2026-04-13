@@ -19,6 +19,8 @@
       --primary: #6366f1;
       --primary-fg: #ffffff;
       --primary-muted: #eef2ff;
+      --danger: #b91c1c;
+      --danger-muted: #fef2f2;
       --radius: 12px;
       --shadow-sm: 0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04);
       --shadow: 0 4px 12px rgba(0,0,0,.08), 0 2px 4px rgba(0,0,0,.04);
@@ -53,25 +55,28 @@
     }
     .header-tagline { font-size: 12px; color: var(--fg-muted); }
 
-    /* ── Main grid ── */
+    /* ── Main layout ── */
     main { flex: 1; max-width: 1080px; margin: 0 auto; width: 100%; padding: 24px; }
-    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
-    @media (max-width: 760px) { .grid { grid-template-columns: 1fr; } .header-tagline { display: none; } }
-
     .panel-label {
       font-size: 11px; font-weight: 600; color: var(--fg-muted);
       text-transform: uppercase; letter-spacing: .08em; margin-bottom: 14px;
+    }
+    .section-gap { margin-top: 28px; }
+    .options-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; }
+    @media (max-width: 760px) {
+      .options-grid { grid-template-columns: 1fr; }
+      .header-tagline { display: none; }
     }
 
     /* ── Drop zone ── */
     .dropzone {
       border: 2px dashed var(--border); border-radius: 18px;
-      min-height: 200px; display: flex; align-items: center; justify-content: center;
+      min-height: 180px; display: flex; align-items: center; justify-content: center;
       cursor: pointer; transition: border-color .18s, background .18s, transform .18s;
       text-align: center; padding: 32px 24px; background: var(--muted);
     }
-    .dropzone:hover, .dropzone.drag { border-color: var(--primary); background: var(--primary-muted); transform: scale(1.01); }
-    .dropzone.has-file { cursor: default; transform: none; background: #fafafa; padding: 16px 20px; }
+    .dropzone:hover, .dropzone.drag { border-color: var(--primary); background: var(--primary-muted); transform: scale(1.005); }
+    .dropzone.has-file { cursor: default; transform: none; background: #fafafa; padding: 16px 20px; min-height: 0; }
     .dropzone-icon {
       width: 56px; height: 56px; border-radius: 16px; background: #fff;
       display: flex; align-items: center; justify-content: center;
@@ -108,44 +113,103 @@
     }
     .replace-link:hover { color: var(--primary); }
 
-    /* ── Options accordion ── */
-    .options-toggle {
-      width: 100%; display: flex; align-items: center; justify-content: space-between;
-      padding: 11px 16px; border-radius: 12px;
-      background: var(--muted); border: 1px solid var(--border);
-      cursor: pointer; font-size: 13px; font-weight: 500;
-      color: var(--fg); transition: background .15s; margin-top: 12px;
+    /* ── Fieldsets (option groups) ── */
+    fieldset {
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px 16px 16px;
+      margin-bottom: 16px;
+      background: var(--card);
     }
-    .options-toggle:hover { background: #e8edf4; }
-    .chevron { font-size: 14px; color: var(--fg-muted); transition: transform .2s; }
-    .chevron.open { transform: rotate(180deg); }
-    .options-body {
-      margin-top: 6px; border: 1px solid var(--border); border-radius: 12px;
-      overflow: hidden; background: var(--card); display: none;
+    fieldset legend {
+      font-size: 11px; font-weight: 700; color: var(--fg-muted);
+      text-transform: uppercase; letter-spacing: .08em;
+      padding: 0 8px;
     }
-    .options-body.open { display: block; }
-    .option-row {
-      padding: 12px 16px; display: flex; align-items: flex-start;
-      justify-content: space-between; gap: 12px; border-bottom: 1px solid var(--border);
+    .field-stack { display: flex; flex-direction: column; gap: 10px; }
+    .field-row {
+      display: flex; align-items: center; gap: 10px;
+      font-size: 13px; color: var(--fg);
     }
-    .option-row:last-child { border-bottom: none; }
-    .option-label { font-size: 13px; font-weight: 500; color: var(--fg); }
-    .option-desc { font-size: 11px; color: var(--fg-muted); margin-top: 2px; }
+    .field-row input[type="radio"],
+    .field-row input[type="checkbox"] {
+      width: 16px; height: 16px; accent-color: var(--primary); cursor: pointer;
+      flex-shrink: 0;
+    }
+    .field-row label {
+      display: flex; align-items: center; gap: 10px;
+      font-size: 13px; color: var(--fg); cursor: pointer;
+      flex: 1; min-width: 0;
+    }
+    .field-row.is-locked label { color: var(--fg-muted); cursor: not-allowed; }
+    .field-row.is-locked input { cursor: not-allowed; }
+    .field-row .lock-icon { font-size: 12px; color: var(--fg-subtle); margin-left: auto; display: none; }
+    .field-row.is-locked .lock-icon { display: inline; }
 
-    /* toggle switch */
-    .switch { position: relative; width: 40px; height: 22px; flex-shrink: 0; cursor: pointer; }
-    .switch input { opacity: 0; width: 0; height: 0; position: absolute; }
-    .switch-track { position: absolute; inset: 0; border-radius: 11px; background: #cbd5e1; transition: background .2s; }
-    .switch input:checked ~ .switch-track { background: var(--primary); }
-    .switch-thumb {
-      position: absolute; top: 3px; left: 3px;
-      width: 16px; height: 16px; border-radius: 50%;
-      background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.2); transition: transform .2s;
+    .field-label { font-size: 12px; font-weight: 600; color: var(--fg-muted); margin-bottom: 6px; display: block; }
+    .text-input {
+      width: 100%; padding: 8px 12px; border-radius: 8px;
+      border: 1px solid var(--border); background: #fff;
+      font-size: 13px; color: var(--fg); font-family: inherit;
+      transition: border-color .15s, box-shadow .15s;
     }
-    .switch input:checked ~ .switch-thumb { transform: translateX(18px); }
+    .text-input:focus {
+      outline: none; border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(99,102,241,.15);
+    }
+    .text-input::placeholder { color: var(--fg-subtle); }
+    .text-input:disabled { background: var(--muted); color: var(--fg-subtle); cursor: not-allowed; }
 
-    /* slider */
-    .slider-row { padding: 12px 16px; }
+    .input-with-action { display: flex; gap: 6px; align-items: stretch; }
+    .input-with-action .text-input { flex: 1; }
+    .key-toggle-btn {
+      flex-shrink: 0; width: 36px;
+      background: #fff; border: 1px solid var(--border); border-radius: 8px;
+      cursor: pointer; font-size: 14px; color: var(--fg-muted);
+      transition: background .15s;
+    }
+    .key-toggle-btn:hover { background: var(--muted); color: var(--fg); }
+
+    /* Shake animation used when a locked control is clicked (Prompt 2 wires this) */
+    @keyframes shake {
+      10%, 90% { transform: translate3d(-1px, 0, 0); }
+      20%, 80% { transform: translate3d(2px, 0, 0); }
+      30%, 50%, 70% { transform: translate3d(-3px, 0, 0); }
+      40%, 60% { transform: translate3d(3px, 0, 0); }
+    }
+    .shake { animation: shake .5s; }
+
+    /* ── AI Settings (<details>) ── */
+    details.ai-settings {
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      margin-bottom: 16px;
+      background: var(--card);
+      overflow: hidden;
+    }
+    details.ai-settings > summary {
+      list-style: none;
+      padding: 12px 16px;
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: space-between;
+      font-size: 12px; font-weight: 700; color: var(--fg-muted);
+      text-transform: uppercase; letter-spacing: .08em;
+      background: var(--muted);
+      transition: background .15s;
+    }
+    details.ai-settings > summary::-webkit-details-marker { display: none; }
+    details.ai-settings > summary:hover { background: #e8edf4; }
+    details.ai-settings > summary::after {
+      content: "▾"; font-size: 12px; color: var(--fg-muted);
+      transition: transform .2s;
+    }
+    details.ai-settings[open] > summary::after { transform: rotate(180deg); }
+    details.ai-settings .ai-body {
+      padding: 16px;
+      display: flex; flex-direction: column; gap: 14px;
+    }
+
+    /* ── Slider (max table rows) ── */
     .slider-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
     .slider-value { font-size: 14px; font-weight: 700; color: var(--primary); }
     input[type=range] {
@@ -160,10 +224,51 @@
     input[type=range]::-webkit-slider-thumb:hover { box-shadow: 0 0 0 5px rgba(99,102,241,.25); }
     .slider-bounds { display: flex; justify-content: space-between; margin-top: 4px; font-size: 10px; color: var(--fg-subtle); }
 
+    /* ── Schema editor (Extract structured data) ── */
+    .preset-row {
+      display: flex; flex-wrap: wrap; gap: 6px; align-items: center;
+      margin-top: 10px;
+    }
+    .preset-label { font-size: 11px; color: var(--fg-muted); margin-right: 4px; }
+    .preset-btn {
+      padding: 4px 10px; border-radius: 999px;
+      background: #fff; border: 1px solid var(--border);
+      font-size: 11px; font-weight: 500; color: var(--fg);
+      cursor: pointer; transition: background .15s, border-color .15s;
+    }
+    .preset-btn:hover:not(:disabled) { background: var(--primary-muted); border-color: var(--primary); color: var(--primary); }
+    .preset-btn:disabled { opacity: .5; cursor: not-allowed; }
+    .schema-textarea {
+      width: 100%; min-height: 140px; margin-top: 10px;
+      padding: 10px 12px; border-radius: 8px;
+      border: 1px solid var(--border); background: var(--muted);
+      font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
+      font-size: 11.5px; color: var(--fg); resize: vertical;
+    }
+    .schema-textarea:focus {
+      outline: none; border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(99,102,241,.15);
+    }
+    .schema-error {
+      display: none; margin-top: 8px; padding: 8px 12px; border-radius: 8px;
+      background: var(--danger-muted); color: var(--danger);
+      border: 1px solid #fca5a5; font-size: 12px;
+    }
+    .schema-error.visible { display: block; }
+
+    /* ── Select (transcription quality) ── */
+    .select-input {
+      padding: 8px 12px; border-radius: 8px;
+      border: 1px solid var(--border); background: #fff;
+      font-size: 13px; color: var(--fg); font-family: inherit;
+      cursor: pointer;
+    }
+    .select-input:focus { outline: none; border-color: var(--primary); }
+
     /* ── Buttons ── */
-    .btn-row { display: flex; gap: 10px; margin-top: 16px; }
+    .btn-row { display: flex; gap: 10px; margin-top: 20px; }
     .btn {
-      height: 40px; border-radius: 10px; border: none; cursor: pointer;
+      height: 44px; border-radius: 10px; border: none; cursor: pointer;
       font-size: 13px; font-weight: 500; display: inline-flex; align-items: center; gap: 6px;
       padding: 0 18px; transition: opacity .15s, box-shadow .15s, background .15s;
     }
@@ -174,15 +279,21 @@
     .btn-outline:hover { background: var(--muted); }
     .btn-ghost { background: none; color: var(--fg-muted); border: none; }
     .btn-ghost:hover { background: var(--muted); color: var(--fg); }
+    .btn-inline-error {
+      display: none; margin-top: 8px; padding: 8px 12px; border-radius: 8px;
+      background: var(--danger-muted); color: var(--danger);
+      border: 1px solid #fca5a5; font-size: 12px;
+    }
+    .btn-inline-error.visible { display: block; }
 
     .spin { display: inline-block; animation: spin .8s linear infinite; }
     @keyframes spin { to { transform: rotate(360deg); } }
 
     /* ── Output panel ── */
     .output-empty {
-      flex: 1; border: 2px dashed var(--border); border-radius: 18px;
+      border: 2px dashed var(--border); border-radius: 18px;
       display: flex; flex-direction: column; align-items: center; justify-content: center;
-      text-align: center; padding: 48px 32px; background: var(--muted); min-height: 460px;
+      text-align: center; padding: 48px 32px; background: var(--muted); min-height: 240px;
     }
     .output-empty-icon {
       width: 48px; height: 48px; border-radius: 14px;
@@ -252,6 +363,14 @@
     }
     .output-content.markdown-view { background: var(--muted); }
 
+    /* chunks notice (RAG output) */
+    .chunks-notice {
+      display: none; margin-top: 10px; padding: 10px 14px;
+      background: var(--primary-muted); border: 1px solid #c7d2fe;
+      border-radius: 10px; font-size: 12px; color: #3730a3;
+    }
+    .chunks-notice.visible { display: block; }
+
     /* rendered preview */
     .md-preview { padding: 20px 24px; }
     .md-preview h1 { font-size: 22px; font-weight: 700; color: var(--fg); margin: 20px 0 12px; line-height: 1.3; }
@@ -297,6 +416,11 @@
     }
 
     .hidden { display: none !important; }
+    .visually-hidden {
+      position: absolute !important; width: 1px; height: 1px;
+      padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0);
+      white-space: nowrap; border: 0;
+    }
   </style>
 </head>
 <body>
@@ -313,185 +437,314 @@
 </header>
 
 <main>
-  <div class="grid">
 
-    <!-- ── LEFT PANEL ── -->
-    <div>
-      <div class="panel-label">Input</div>
+  <!-- ── 1. File upload (full width) ─────────────────────────────────── -->
+  <div class="panel-label">Input</div>
 
-      <div
-        class="dropzone"
-        id="dropzone"
-        ondragover="event.preventDefault(); this.classList.add('drag')"
-        ondragleave="this.classList.remove('drag')"
-        ondrop="handleDrop(event)"
-        onclick="triggerPicker(event)"
-      >
-        <div id="drop-empty">
-          <div class="dropzone-icon">☁️</div>
-          <div class="dropzone-title">Drop your file here</div>
-          <div class="dropzone-sub">or <span onclick="document.getElementById('file-input').click(); event.stopPropagation()">click to browse</span></div>
-          <div class="format-chips">
-            <span class="format-chip">DOCX</span>
-            <span class="format-chip">XLSX</span>
-            <span class="format-chip">PPTX</span>
-            <span class="format-chip">PDF</span>
-            <span class="format-chip">CSV</span>
-          </div>
-        </div>
-        <div id="drop-file" class="hidden" style="width:100%">
-          <div class="file-strip">
-            <span class="file-emoji" id="file-emoji">📄</span>
-            <div class="file-info">
-              <div class="file-name" id="file-name">—</div>
-              <div class="file-meta" id="file-meta">—</div>
-            </div>
-            <button class="file-remove" onclick="clearAll(event)" title="Remove file">✕</button>
-          </div>
-          <span class="replace-link" onclick="document.getElementById('file-input').click(); event.stopPropagation()">Replace file</span>
-        </div>
-      </div>
-      <input type="file" id="file-input" accept=".docx,.doc,.xlsx,.xls,.csv,.pptx,.ppt,.pdf" class="hidden" onchange="handleFileInput(this)" />
-
-      <button class="options-toggle" onclick="toggleOptions(this)">
-        <span>Conversion options</span>
-        <span class="chevron" id="chevron">▾</span>
-      </button>
-      <div class="options-body" id="options-body">
-        <div class="option-row">
-          <div>
-            <div class="option-label">Include Metadata</div>
-            <div class="option-desc">Prepend title, author &amp; dates as YAML</div>
-          </div>
-          <label class="switch">
-            <input type="checkbox" id="meta-toggle" checked />
-            <span class="switch-track"></span>
-            <span class="switch-thumb"></span>
-          </label>
-        </div>
-        <div class="option-row">
-          <div>
-            <div class="option-label">Enable OCR</div>
-            <div class="option-desc">For scanned or image-only PDFs (slower)</div>
-          </div>
-          <label class="switch">
-            <input type="checkbox" id="ocr-toggle" />
-            <span class="switch-track"></span>
-            <span class="switch-thumb"></span>
-          </label>
-        </div>
-        <div class="slider-row">
-          <div class="slider-header">
-            <span class="option-label">Max table rows</span>
-            <span class="slider-value" id="slider-val">500</span>
-          </div>
-          <input type="range" id="max-rows-slider" min="10" max="5000" step="10" value="500"
-            oninput="document.getElementById('slider-val').textContent = Number(this.value).toLocaleString()" />
-          <div class="slider-bounds"><span>10</span><span>5,000</span></div>
-        </div>
-        <div class="option-row" id="whisper-row" style="display:none">
-          <div>
-            <div class="option-label">Whisper Model</div>
-            <div class="option-desc">Larger = better quality, slower</div>
-          </div>
-          <select id="whisper-model" style="padding:6px 10px;border-radius:8px;border:1px solid #d1d5db;font-size:13px;background:#fff">
-            <option value="tiny">Tiny (fastest)</option>
-            <option value="base" selected>Base (recommended)</option>
-            <option value="small">Small</option>
-            <option value="medium">Medium (slow)</option>
-            <option value="large-v3">Large v3 (best, very slow)</option>
-          </select>
-        </div>
-      </div>
-
-      <div class="btn-row">
-        <button class="btn btn-primary" id="convert-btn" onclick="startConvert()" disabled>
-          <span>⚡</span> Convert to Markdown
-        </button>
-        <button class="btn btn-outline" onclick="clearAll(null)" id="clear-btn" disabled>Clear</button>
+  <div
+    class="dropzone"
+    id="dropzone"
+    ondragover="event.preventDefault(); this.classList.add('drag')"
+    ondragleave="this.classList.remove('drag')"
+    ondrop="handleDrop(event)"
+    onclick="triggerPicker(event)"
+  >
+    <div id="drop-empty">
+      <div class="dropzone-icon">☁️</div>
+      <div class="dropzone-title">Drop your file here</div>
+      <div class="dropzone-sub">or <span onclick="document.getElementById('file-input').click(); event.stopPropagation()">click to browse</span></div>
+      <div class="format-chips">
+        <span class="format-chip">DOCX</span>
+        <span class="format-chip">XLSX</span>
+        <span class="format-chip">PPTX</span>
+        <span class="format-chip">PDF</span>
+        <span class="format-chip">CSV</span>
+        <span class="format-chip">HTML</span>
+        <span class="format-chip">MP3</span>
       </div>
     </div>
+    <div id="drop-file" class="hidden" style="width:100%">
+      <div class="file-strip">
+        <span class="file-emoji" id="file-emoji">📄</span>
+        <div class="file-info">
+          <div class="file-name" id="file-name">—</div>
+          <div class="file-meta" id="file-meta">—</div>
+        </div>
+        <button class="file-remove" onclick="clearAll(event)" title="Remove file">✕</button>
+      </div>
+      <span class="replace-link" onclick="document.getElementById('file-input').click(); event.stopPropagation()">Replace file</span>
+    </div>
+  </div>
+  <input type="file" id="file-input" accept=".docx,.doc,.odt,.xlsx,.xlsm,.xls,.csv,.pptx,.ppt,.pdf,.html,.htm,.epub,.wsdl,.wsd,.json,.sql,.mp3,.wav,.m4a,.flac,.ogg" class="hidden" onchange="handleFileInput(this)" />
 
-    <!-- ── RIGHT PANEL ── -->
+  <!-- ── 2. Options grid ─────────────────────────────────────────────── -->
+  <div class="section-gap options-grid">
+
+    <!-- ── LEFT column: Output format + output-level options ── -->
     <div>
       <div class="panel-label">Output</div>
 
-      <div class="output-empty" id="output-empty">
-        <div id="empty-state">
-          <div class="output-empty-icon">📄</div>
-          <div class="output-empty-title">No output yet</div>
-          <div class="output-empty-sub">Drop a file and click Convert to see your Markdown here</div>
-          <div class="output-hint">▸ Output will appear with quality score and download options</div>
+      <fieldset>
+        <legend>Format</legend>
+        <div class="field-stack">
+          <div class="field-row">
+            <label><input type="radio" name="output_format" value="markdown" checked /> Markdown</label>
+          </div>
+          <div class="field-row">
+            <label><input type="radio" name="output_format" value="html" /> HTML</label>
+          </div>
+          <div class="field-row">
+            <label><input type="radio" name="output_format" value="chunks" /> RAG Chunks</label>
+          </div>
+          <div class="field-row">
+            <label><input type="radio" name="output_format" value="json" /> JSON</label>
+          </div>
         </div>
-        <div id="converting-state" class="hidden converting-state">
-          <div class="spinner-ring"></div>
-          <div class="output-empty-title">Converting document…</div>
-          <div class="output-empty-sub">This usually takes a few seconds</div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Options</legend>
+        <div class="field-stack">
+          <div class="field-row">
+            <label><input type="checkbox" id="paginate-toggle" /> Paginate output</label>
+          </div>
+          <div class="field-row">
+            <label><input type="checkbox" id="meta-toggle" checked /> Include metadata</label>
+          </div>
         </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Max table rows</legend>
+        <div class="slider-header">
+          <span style="font-size:12px;color:var(--fg-muted)">Cap rows per table</span>
+          <span class="slider-value" id="slider-val">500</span>
+        </div>
+        <input type="range" id="max-rows-slider" min="10" max="5000" step="10" value="500"
+          oninput="document.getElementById('slider-val').textContent = Number(this.value).toLocaleString()" />
+        <div class="slider-bounds"><span>10</span><span>5,000</span></div>
+      </fieldset>
+    </div>
+
+    <!-- ── RIGHT column: AI Settings + advanced options ── -->
+    <div>
+      <div class="panel-label">Advanced</div>
+
+      <details class="ai-settings" id="ai-settings">
+        <summary>AI Settings</summary>
+        <div class="ai-body">
+          <div>
+            <label class="field-label" for="llm-key">API Key</label>
+            <div class="input-with-action">
+              <input type="password" id="llm-key" class="text-input" placeholder="Paste your key — held in memory only" autocomplete="off" />
+              <button type="button" class="key-toggle-btn" id="key-show-toggle" title="Show / hide key" aria-label="Toggle key visibility">👁</button>
+            </div>
+          </div>
+          <div>
+            <label class="field-label" for="llm-model">Model</label>
+            <input type="text" id="llm-model" class="text-input" placeholder="claude-3-5-sonnet" autocomplete="off" />
+          </div>
+          <div>
+            <label class="field-label" for="llm-base-url">Base URL</label>
+            <input type="text" id="llm-base-url" class="text-input" placeholder="https://api.openai.com — leave blank for default" autocomplete="off" />
+          </div>
+        </div>
+      </details>
+
+      <fieldset>
+        <legend>Images</legend>
+        <div class="field-stack">
+          <div class="field-row">
+            <label><input type="radio" name="images" value="suppress" /> Ignore</label>
+          </div>
+          <div class="field-row">
+            <label><input type="radio" name="images" value="extract" checked /> Extract</label>
+          </div>
+          <div class="field-row">
+            <label><input type="radio" name="images" value="inline_ocr" /> OCR (extract text)</label>
+          </div>
+          <div class="field-row is-locked" data-locks="api-key">
+            <label>
+              <input type="radio" name="images" value="caption" data-requires-key="true" disabled title="Enter an API key in AI Settings to enable this feature" />
+              Describe using AI
+            </label>
+            <span class="lock-icon">🔒</span>
+          </div>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Document Quality</legend>
+        <div class="field-stack">
+          <div class="field-row is-locked" data-locks="api-key">
+            <label>
+              <input type="checkbox" id="llm-merge-tables" data-requires-key="true" disabled title="Enter an API key in AI Settings to enable this feature" />
+              Merge split tables
+            </label>
+            <span class="lock-icon">🔒</span>
+          </div>
+          <div class="field-row is-locked" data-locks="api-key">
+            <label>
+              <input type="checkbox" id="extract-toggle" data-requires-key="true" disabled title="Enter an API key in AI Settings to enable this feature" />
+              Extract structured data
+            </label>
+            <span class="lock-icon">🔒</span>
+          </div>
+          <div id="extract-panel" class="hidden">
+            <div class="preset-row">
+              <span class="preset-label">Presets:</span>
+              <button type="button" class="preset-btn" data-preset="contract">Contract</button>
+              <button type="button" class="preset-btn" data-preset="invoice">Invoice</button>
+              <button type="button" class="preset-btn" data-preset="meeting">Meeting notes</button>
+            </div>
+            <textarea id="extract-schema" class="schema-textarea" placeholder='{"field_name": "string"}' spellcheck="false"></textarea>
+          </div>
+        </div>
+      </fieldset>
+
+      <fieldset id="audio-section" class="hidden">
+        <legend>Audio</legend>
+        <div class="field-stack">
+          <div>
+            <label class="field-label" for="whisper-model">Transcription quality</label>
+            <select id="whisper-model" class="select-input" style="width:100%">
+              <option value="tiny">Fastest</option>
+              <option value="base" selected>Fast</option>
+              <option value="small">Balanced</option>
+              <option value="medium">High Quality</option>
+              <option value="large-v3">Best</option>
+            </select>
+          </div>
+          <div class="field-row">
+            <label><input type="checkbox" id="speaker-labels" checked /> Speaker labels</label>
+          </div>
+          <div class="field-row is-locked" data-locks="api-key">
+            <label>
+              <input type="checkbox" id="topic-segmentation" data-requires-key="true" disabled title="Enter an API key in AI Settings to enable this feature" />
+              Topic segmentation
+            </label>
+            <span class="lock-icon">🔒</span>
+          </div>
+        </div>
+      </fieldset>
+
+    </div>
+  </div>
+
+  <!-- ── 3. Convert button ───────────────────────────────────────────── -->
+  <div class="btn-row">
+    <button class="btn btn-primary" id="convert-btn" onclick="startConvert()" disabled>
+      <span>⚡</span> Convert
+    </button>
+    <button class="btn btn-outline" onclick="clearAll(null)" id="clear-btn" disabled>Clear</button>
+  </div>
+  <div class="btn-inline-error" id="convert-error"></div>
+
+  <!-- ── 4. Output result area ───────────────────────────────────────── -->
+  <div class="section-gap">
+    <div class="panel-label">Result</div>
+
+    <div class="output-empty" id="output-empty">
+      <div id="empty-state">
+        <div class="output-empty-icon">📄</div>
+        <div class="output-empty-title">No output yet</div>
+        <div class="output-empty-sub">Drop a file and click Convert to see your result here</div>
+        <div class="output-hint">▸ Output will appear with quality score and download options</div>
       </div>
-
-      <div id="output-result" class="hidden">
-        <!-- Quality + stats -->
-        <div class="quality-row">
-          <div class="tooltip-wrapper">
-            <div class="quality-badge quality-excellent" id="quality-badge">
-              <span class="quality-dot"></span>
-              <span id="quality-text">Quality: —</span>
-              <span style="font-size:12px; opacity:.6">ⓘ</span>
-            </div>
-            <div class="tooltip-box">
-              <div class="tooltip-header">
-                <div class="tooltip-header-label">Structural Fidelity</div>
-              </div>
-              <div class="tooltip-body" id="tooltip-body">
-                <!-- populated by renderQuality() -->
-              </div>
-            </div>
-          </div>
-          <div class="stats-text" id="stats-text"></div>
-        </div>
-
-        <!-- Tab bar -->
-        <div class="tab-bar">
-          <div class="tabs">
-            <button class="tab-btn active" id="tab-preview" onclick="switchTab('preview')">Preview</button>
-            <button class="tab-btn" id="tab-markdown" onclick="switchTab('markdown')">Markdown</button>
-          </div>
-          <div class="tab-actions">
-            <button class="btn btn-ghost" id="copy-btn" onclick="copyMarkdown()" style="height:32px; font-size:12px; padding:0 10px">
-              📋 Copy
-            </button>
-            <button class="btn btn-primary" onclick="downloadMarkdown()" style="height:32px; font-size:12px; padding:0 12px; flex:none">
-              ⬇ Download .md
-            </button>
-          </div>
-        </div>
-
-        <div class="output-content" id="pane-preview">
-          <div class="md-preview" id="preview-content"></div>
-        </div>
-        <div class="output-content markdown-view hidden" id="pane-markdown">
-          <div class="md-raw" id="raw-content"></div>
-        </div>
-
-        <!-- Warnings -->
-        <div class="warnings-box" id="warnings-box">
-          <div class="warnings-title">⚠ Conversion warnings</div>
-          <div id="warnings-list"></div>
-        </div>
+      <div id="converting-state" class="hidden converting-state">
+        <div class="spinner-ring"></div>
+        <div class="output-empty-title">Converting document…</div>
+        <div class="output-empty-sub">This usually takes a few seconds</div>
       </div>
     </div>
 
+    <div id="output-result" class="hidden">
+      <!-- Quality + stats -->
+      <div class="quality-row">
+        <div class="tooltip-wrapper">
+          <div class="quality-badge quality-excellent" id="quality-badge">
+            <span class="quality-dot"></span>
+            <span id="quality-text">Quality: —</span>
+            <span style="font-size:12px; opacity:.6">ⓘ</span>
+          </div>
+          <div class="tooltip-box">
+            <div class="tooltip-header">
+              <div class="tooltip-header-label">Structural Fidelity</div>
+            </div>
+            <div class="tooltip-body" id="tooltip-body">
+              <!-- populated by renderQuality() -->
+            </div>
+          </div>
+        </div>
+        <div class="stats-text" id="stats-text"></div>
+      </div>
+
+      <!-- Tab bar -->
+      <div class="tab-bar">
+        <div class="tabs">
+          <button class="tab-btn active" id="tab-preview" onclick="switchTab('preview')">Preview</button>
+          <button class="tab-btn" id="tab-markdown" onclick="switchTab('markdown')">Markdown</button>
+        </div>
+        <div class="tab-actions">
+          <button class="btn btn-ghost" id="copy-btn" onclick="copyMarkdown()" style="height:32px; font-size:12px; padding:0 10px">
+            📋 Copy
+          </button>
+          <button class="btn btn-primary" id="download-btn" onclick="downloadMarkdown()" style="height:32px; font-size:12px; padding:0 12px; flex:none">
+            ⬇ Download
+          </button>
+        </div>
+      </div>
+
+      <div class="output-content" id="pane-preview">
+        <div class="md-preview" id="preview-content"></div>
+      </div>
+      <div class="output-content markdown-view hidden" id="pane-markdown">
+        <div class="md-raw" id="raw-content"></div>
+      </div>
+
+      <!-- Chunks-specific note (shown only for output_format=chunks; Prompt 2 toggles visibility) -->
+      <div class="chunks-notice" id="chunks-notice">
+        These chunks are ready for Pinecone, Weaviate, Qdrant, or any vector database that accepts JSON.
+      </div>
+
+      <!-- Warnings -->
+      <div class="warnings-box" id="warnings-box">
+        <div class="warnings-title">⚠ Conversion warnings</div>
+        <div id="warnings-list"></div>
+      </div>
+    </div>
   </div>
+
 </main>
 
 <script>
-// ── State ─────────────────────────────────────────────────────────────────────
+// ── Constants ─────────────────────────────────────────────────────────────────
 const FORMAT_EMOJIS = { DOCX:'📝', DOC:'📝', ODT:'📝', XLSX:'📊', XLSM:'📊', XLS:'📊', CSV:'📊', PPTX:'📋', PPT:'📋', PDF:'📄', HTML:'🌐', HTM:'🌐', MP3:'🎵', WAV:'🎵', M4A:'🎵', FLAC:'🎵', OGG:'🎵' };
 const FORMAT_NAMES  = { DOCX:'Word', DOC:'Word', ODT:'OpenDocument', XLSX:'Excel', XLSM:'Excel (Macro)', XLS:'Excel', CSV:'CSV', PPTX:'PowerPoint', PPT:'PowerPoint', PDF:'PDF', HTML:'HTML', HTM:'HTML', MP3:'Audio', WAV:'Audio', M4A:'Audio', FLAC:'Audio', OGG:'Audio' };
 
-let currentFile     = null;
-let currentMarkdown = '';
+// Audio MIME types recognised by the /api/convert endpoint. video/mp4 is
+// included because browsers report .m4a as video/mp4 on some platforms.
+const AUDIO_MIME_TYPES = new Set([
+  'audio/mpeg', 'audio/mp3',
+  'audio/wav', 'audio/wave', 'audio/x-wav',
+  'audio/mp4', 'audio/x-m4a', 'audio/aac',
+  'audio/flac', 'audio/x-flac',
+  'audio/ogg', 'audio/vorbis',
+  'video/mp4',
+]);
+const AUDIO_EXTENSIONS = new Set(['MP3','WAV','M4A','FLAC','OGG']);
+
+const PRESET_SCHEMAS = {
+  contract: '{\n  "parties": ["string"],\n  "effective_date": "string",\n  "termination_notice_days": "integer",\n  "governing_law": "string"\n}',
+  invoice:  '{\n  "vendor": "string",\n  "invoice_number": "string",\n  "total_amount": "number",\n  "due_date": "string",\n  "line_items": ["string"]\n}',
+  meeting:  '{\n  "attendees": ["string"],\n  "decisions": ["string"],\n  "action_items": ["string"],\n  "next_meeting": "string"\n}',
+};
+
+// ── State (memory only — never persisted) ────────────────────────────────────
+let currentFile        = null;
+let currentOutput      = '';      // rendered string for Copy/Download
+let currentChunks      = null;    // raw chunks array when format=chunks
+let currentFormat      = 'markdown';
 
 // ── File handling ─────────────────────────────────────────────────────────────
 function triggerPicker(e) {
@@ -511,6 +764,13 @@ function handleFileInput(input) {
   if (file) loadFile(file);
 }
 
+function isAudioFile(file) {
+  if (!file) return false;
+  if (file.type && AUDIO_MIME_TYPES.has(file.type)) return true;
+  const ext = (file.name.split('.').pop() || '').toUpperCase();
+  return AUDIO_EXTENSIONS.has(ext);
+}
+
 function loadFile(file) {
   currentFile = file;
   const ext     = (file.name.split('.').pop() || '').toUpperCase();
@@ -525,28 +785,28 @@ function loadFile(file) {
   dz.classList.add('has-file');
   document.getElementById('drop-empty').classList.add('hidden');
   document.getElementById('drop-file').classList.remove('hidden');
-  document.getElementById('convert-btn').disabled = false;
-  document.getElementById('clear-btn').disabled   = false;
+  document.getElementById('clear-btn').disabled = false;
 
-  // Show whisper model selector for audio files
-  const audioExts = ['MP3','WAV','M4A','FLAC','OGG'];
-  document.getElementById('whisper-row').style.display =
-    audioExts.includes(ext) ? 'flex' : 'none';
+  // Audio section: check MIME first, fall back to extension
+  document.getElementById('audio-section').classList.toggle('hidden', !isAudioFile(file));
 
+  updateConvertEnabled();
   resetOutput();
 }
 
 function clearAll(e) {
   if (e) e.stopPropagation();
-  currentFile = null;
-  currentMarkdown = '';
+  currentFile   = null;
+  currentOutput = '';
+  currentChunks = null;
   document.getElementById('file-input').value = '';
   const dz = document.getElementById('dropzone');
   dz.classList.remove('has-file');
   document.getElementById('drop-empty').classList.remove('hidden');
   document.getElementById('drop-file').classList.add('hidden');
-  document.getElementById('convert-btn').disabled = true;
-  document.getElementById('clear-btn').disabled   = true;
+  document.getElementById('clear-btn').disabled = true;
+  document.getElementById('audio-section').classList.add('hidden');
+  updateConvertEnabled();
   resetOutput();
 }
 
@@ -555,31 +815,168 @@ function resetOutput() {
   document.getElementById('output-result').classList.add('hidden');
   document.getElementById('empty-state').classList.remove('hidden');
   document.getElementById('converting-state').classList.add('hidden');
+  document.getElementById('chunks-notice').classList.remove('visible');
+}
+
+// ── Lock / unlock (LLM-dependent controls) ───────────────────────────────────
+function refreshLocks() {
+  const hasKey = document.getElementById('llm-key').value.trim().length > 0;
+  document.querySelectorAll('[data-requires-key="true"]').forEach(el => {
+    el.disabled = !hasKey;
+    const row = el.closest('.field-row');
+    if (row) row.classList.toggle('is-locked', !hasKey);
+  });
+  // Preset buttons also depend on Extract being checked AND key present —
+  // but the spec treats presets as always-usable once the extract panel is
+  // open. They stay always-enabled here; the Convert button is what enforces
+  // schema-non-empty before submission.
+}
+
+function handleLockedRowClick(e) {
+  const row = e.currentTarget;
+  if (!row.classList.contains('is-locked')) return;  // unlocked — let native click through
+  e.preventDefault();
+
+  const details = document.getElementById('ai-settings');
+  if (!details.open) details.open = true;
+
+  const keyField = document.getElementById('llm-key');
+  keyField.focus();
+
+  // Reflow trigger so the animation restarts on repeat clicks
+  keyField.classList.remove('shake');
+  void keyField.offsetWidth;
+  keyField.classList.add('shake');
+  setTimeout(() => keyField.classList.remove('shake'), 500);
+}
+
+function toggleKeyVisibility() {
+  const f = document.getElementById('llm-key');
+  f.type = (f.type === 'password') ? 'text' : 'password';
+  const btn = document.getElementById('key-show-toggle');
+  btn.textContent = (f.type === 'text') ? '🙈' : '👁';
+}
+
+// ── Extract structured data ───────────────────────────────────────────────────
+function updateExtractPanel() {
+  const checked = document.getElementById('extract-toggle').checked;
+  document.getElementById('extract-panel').classList.toggle('hidden', !checked);
+  updateConvertEnabled();
+}
+
+function loadPreset(name) {
+  const schema = PRESET_SCHEMAS[name];
+  if (!schema) return;
+  document.getElementById('extract-schema').value = schema;  // replace, no confirmation
+  updateConvertEnabled();
+}
+
+// ── Convert button enable/disable ─────────────────────────────────────────────
+function updateConvertEnabled() {
+  const btn    = document.getElementById('convert-btn');
+  const errBox = document.getElementById('convert-error');
+
+  if (!currentFile) {
+    btn.disabled = true;
+    errBox.classList.remove('visible');
+    return;
+  }
+
+  const extractOn  = document.getElementById('extract-toggle').checked;
+  const schemaText = document.getElementById('extract-schema').value.trim();
+
+  if (extractOn && !schemaText) {
+    btn.disabled = true;
+    errBox.textContent = 'Please enter or select a schema';
+    errBox.classList.add('visible');
+    return;
+  }
+
+  btn.disabled = false;
+  errBox.classList.remove('visible');
+}
+
+// ── FormData assembly ─────────────────────────────────────────────────────────
+function buildFormData() {
+  const form = new FormData();
+  form.append('file', currentFile);
+
+  // Output (left column)
+  const fmt = document.querySelector('input[name="output_format"]:checked');
+  form.append('output_format', fmt ? fmt.value : 'markdown');
+  form.append('paginate_output', document.getElementById('paginate-toggle').checked);
+  form.append('include_metadata', document.getElementById('meta-toggle').checked);
+  form.append('max_rows', document.getElementById('max-rows-slider').value);
+
+  // Images (right column)
+  const img = document.querySelector('input[name="images"]:checked');
+  form.append('images', img ? img.value : 'extract');
+
+  // AI Settings — omit each field when empty so server env var fallbacks win
+  const key     = document.getElementById('llm-key').value.trim();
+  const model   = document.getElementById('llm-model').value.trim();
+  const baseUrl = document.getElementById('llm-base-url').value.trim();
+  if (key)     form.append('llm_api_key',  key);
+  if (model)   form.append('llm_model',    model);
+  if (baseUrl) form.append('llm_base_url', baseUrl);
+
+  // When caption mode selected, reuse LLM fields as vision fields
+  const imgChecked = document.querySelector('input[name="images"]:checked');
+  const imagesMode = imgChecked ? imgChecked.value : 'extract';
+  if (imagesMode === 'caption') {
+    if (key)     form.append('vision_api_key',  key);
+    if (baseUrl) form.append('vision_base_url', baseUrl);
+    form.append('vision_provider', 'openai');
+  }
+
+  // Document Quality
+  form.append('llm_merge_tables', document.getElementById('llm-merge-tables').checked);
+  const extractOn = document.getElementById('extract-toggle').checked;
+  form.append('extract', extractOn);
+  if (extractOn) {
+    form.append('schema', document.getElementById('extract-schema').value);
+  }
+
+  // Audio — only when visible (audio file was selected)
+  if (!document.getElementById('audio-section').classList.contains('hidden')) {
+    form.append('whisper_model',      document.getElementById('whisper-model').value);
+    form.append('speaker_labels',     document.getElementById('speaker-labels').checked);
+    form.append('topic_segmentation', document.getElementById('topic-segmentation').checked);
+  }
+
+  return form;
 }
 
 // ── Conversion ────────────────────────────────────────────────────────────────
 async function startConvert() {
   if (!currentFile) return;
 
-  // Show converting state
+  const extractOn  = document.getElementById('extract-toggle').checked;
+  const schemaText = document.getElementById('extract-schema').value.trim();
+  if (extractOn && !schemaText) {
+    updateConvertEnabled();
+    return;
+  }
+
+  // Snapshot the chosen format so result rendering uses the value that
+  // was in effect when the request was issued (not when it completes).
+  const fmtInput = document.querySelector('input[name="output_format"]:checked');
+  currentFormat  = fmtInput ? fmtInput.value : 'markdown';
+
+  // Converting state
   document.getElementById('output-empty').classList.remove('hidden');
   document.getElementById('output-result').classList.add('hidden');
   document.getElementById('empty-state').classList.add('hidden');
   document.getElementById('converting-state').classList.remove('hidden');
+  document.getElementById('chunks-notice').classList.remove('visible');
 
   const btn = document.getElementById('convert-btn');
   btn.innerHTML = '<span class="spin">↻</span> Converting…';
   btn.disabled  = true;
 
   try {
-    const form = new FormData();
-    form.append('file',             currentFile);
-    form.append('include_metadata', document.getElementById('meta-toggle').checked);
-    form.append('max_rows',         document.getElementById('max-rows-slider').value);
-    form.append('enable_ocr',       document.getElementById('ocr-toggle').checked);
-    form.append('whisper_model',    document.getElementById('whisper-model').value);
-
-    const res = await fetch('/api/convert', { method: 'POST', body: form });
+    const form = buildFormData();
+    const res  = await fetch('/api/convert', { method: 'POST', body: form });
 
     if (!res.ok) {
       const err = await res.json().catch(() => ({ detail: 'Conversion failed' }));
@@ -589,28 +986,19 @@ async function startConvert() {
 
     const data = await res.json();
 
-    // Async job queued (audio, large files) — poll for result
+    // Async job queued — poll for result
     if (res.status === 202 && data.job_id) {
       await pollJob(data.job_id, data.poll_url || `/jobs/${data.job_id}`);
       return;
     }
 
-    currentMarkdown = data.markdown;
-
-    renderQuality(data.quality);
-    renderStats(data.stats);
-    renderOutput(data.markdown);
-    renderWarnings(data.warnings);
-
-    document.getElementById('output-empty').classList.add('hidden');
-    document.getElementById('output-result').classList.remove('hidden');
-    switchTab('preview');
+    displayResult(data);
 
   } catch (err) {
     showError('Network error: ' + err.message);
   } finally {
-    btn.innerHTML = '<span>⚡</span> Convert to Markdown';
-    btn.disabled  = false;
+    btn.innerHTML = '<span>⚡</span> Convert';
+    updateConvertEnabled();
   }
 }
 
@@ -623,14 +1011,7 @@ async function pollJob(jobId, pollUrl) {
       const res  = await fetch(pollUrl);
       const data = await res.json();
       if (data.status === 'complete' && data.result) {
-        currentMarkdown = data.result.markdown || '';
-        renderQuality(data.result.quality || {});
-        renderStats(data.result.stats || {});
-        renderOutput(currentMarkdown);
-        renderWarnings(data.result.warnings || []);
-        document.getElementById('output-empty').classList.add('hidden');
-        document.getElementById('output-result').classList.remove('hidden');
-        switchTab('preview');
+        displayResult(data.result);
         return;
       }
       if (data.status === 'failed') {
@@ -645,6 +1026,60 @@ async function pollJob(jobId, pollUrl) {
   showError('Conversion timed out after 10 minutes. Check /jobs/' + jobId);
 }
 
+function displayResult(data) {
+  renderQuality(data.quality);
+  renderStats(data.stats);
+  renderWarnings(data.warnings);
+
+  const previewEl = document.getElementById('preview-content');
+  const rawEl     = document.getElementById('raw-content');
+
+  if (currentFormat === 'chunks' && Array.isArray(data.chunks)) {
+    currentChunks = data.chunks;
+    currentOutput = JSON.stringify(data.chunks, null, 2);
+    rawEl.textContent = currentOutput;
+    previewEl.innerHTML = '<pre style="padding:20px 24px;font-family:Menlo,Monaco,monospace;font-size:11.5px;color:#334155;white-space:pre-wrap">'
+      + escapeHtml(currentOutput) + '</pre>';
+    triggerChunksDownload(data.chunks);
+    document.getElementById('chunks-notice').classList.add('visible');
+  } else if (currentFormat === 'json' && data.document) {
+    currentChunks = null;
+    currentOutput = JSON.stringify(data.document, null, 2);
+    rawEl.textContent = currentOutput;
+    previewEl.innerHTML = '<pre style="padding:20px 24px;font-family:Menlo,Monaco,monospace;font-size:11.5px;color:#334155;white-space:pre-wrap">'
+      + escapeHtml(currentOutput) + '</pre>';
+  } else if (currentFormat === 'html' && typeof data.html === 'string') {
+    currentChunks = null;
+    currentOutput = data.html;
+    rawEl.textContent = data.html;
+    previewEl.innerHTML = data.html;
+  } else {
+    currentChunks = null;
+    currentOutput = data.markdown || '';
+    rawEl.textContent = currentOutput;
+    previewEl.innerHTML = typeof marked !== 'undefined'
+      ? marked.parse(currentOutput)
+      : '<pre>' + escapeHtml(currentOutput) + '</pre>';
+  }
+
+  document.getElementById('output-empty').classList.add('hidden');
+  document.getElementById('output-result').classList.remove('hidden');
+  switchTab('preview');
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function triggerChunksDownload(chunks) {
+  const stem = currentFile ? currentFile.name.replace(/\.[^.]+$/, '') : 'output';
+  const blob = new Blob([JSON.stringify(chunks, null, 2)], { type: 'application/json' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href = url; a.download = stem + '.chunks.json'; a.click();
+  URL.revokeObjectURL(url);
+}
+
 function showError(msg) {
   document.getElementById('output-empty').classList.remove('hidden');
   document.getElementById('converting-state').classList.add('hidden');
@@ -652,7 +1087,7 @@ function showError(msg) {
   document.getElementById('empty-state').innerHTML =
     `<div class="output-empty-icon">⚠️</div>
      <div class="output-empty-title" style="color:#b91c1c">Conversion failed</div>
-     <div class="output-empty-sub" style="color:#b91c1c;max-width:320px">${msg}</div>`;
+     <div class="output-empty-sub" style="color:#b91c1c;max-width:320px">${escapeHtml(msg)}</div>`;
 }
 
 // ── Render helpers ────────────────────────────────────────────────────────────
@@ -687,19 +1122,17 @@ function renderQuality(q) {
 }
 
 function renderStats(s) {
+  if (!s) s = {};
   const parts = [];
   if (s.words)  parts.push(`~${s.words.toLocaleString()} words`);
   if (s.pages)  parts.push(`${s.pages} page${s.pages !== 1 ? 's' : ''}`);
   else if (s.slides) parts.push(`${s.slides} slides`);
   else if (s.sheets) parts.push(`${s.sheets} sheets`);
   if (s.format) parts.push(s.format);
+  if (currentFormat === 'chunks' && currentChunks) {
+    parts.push(`${currentChunks.length} chunk${currentChunks.length !== 1 ? 's' : ''}`);
+  }
   document.getElementById('stats-text').textContent = parts.join(' · ');
-}
-
-function renderOutput(markdown) {
-  document.getElementById('raw-content').textContent = markdown;
-  document.getElementById('preview-content').innerHTML =
-    typeof marked !== 'undefined' ? marked.parse(markdown) : '<pre>' + markdown + '</pre>';
 }
 
 function renderWarnings(warnings) {
@@ -709,7 +1142,7 @@ function renderWarnings(warnings) {
     return;
   }
   document.getElementById('warnings-list').innerHTML =
-    warnings.map(w => `<div>· ${typeof w === 'object' ? (w.message || JSON.stringify(w)) : w}</div>`).join('');
+    warnings.map(w => `<div>· ${escapeHtml(typeof w === 'object' ? (w.message || JSON.stringify(w)) : w)}</div>`).join('');
   box.classList.add('visible');
 }
 
@@ -723,8 +1156,8 @@ function switchTab(tab) {
 
 // ── Copy / Download ───────────────────────────────────────────────────────────
 function copyMarkdown() {
-  if (!currentMarkdown) return;
-  navigator.clipboard.writeText(currentMarkdown).catch(() => {});
+  if (!currentOutput) return;
+  navigator.clipboard.writeText(currentOutput).catch(() => {});
   const btn = document.getElementById('copy-btn');
   btn.textContent = '✓ Copied';
   btn.classList.add('copy-confirm');
@@ -732,22 +1165,53 @@ function copyMarkdown() {
 }
 
 function downloadMarkdown() {
-  if (!currentMarkdown) return;
+  if (!currentOutput) return;
   const stem = currentFile ? currentFile.name.replace(/\.[^.]+$/, '') : 'output';
-  const blob  = new Blob([currentMarkdown], { type: 'text/markdown' });
-  const url   = URL.createObjectURL(blob);
-  const a     = document.createElement('a');
-  a.href = url; a.download = stem + '.md'; a.click();
+
+  let mimeType, suffix;
+  if      (currentFormat === 'chunks') { mimeType = 'application/json'; suffix = '.chunks.json'; }
+  else if (currentFormat === 'json')   { mimeType = 'application/json'; suffix = '.json'; }
+  else if (currentFormat === 'html')   { mimeType = 'text/html';        suffix = '.html'; }
+  else                                  { mimeType = 'text/markdown';    suffix = '.md'; }
+
+  const blob = new Blob([currentOutput], { type: mimeType });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href = url; a.download = stem + suffix; a.click();
   URL.revokeObjectURL(url);
 }
 
-// ── Options accordion ─────────────────────────────────────────────────────────
-function toggleOptions(btn) {
-  const body    = document.getElementById('options-body');
-  const chevron = document.getElementById('chevron');
-  const open    = body.classList.toggle('open');
-  chevron.classList.toggle('open', open);
-}
+// ── Wire-up ───────────────────────────────────────────────────────────────────
+(function init() {
+  // Lock/unlock on key field input
+  document.addEventListener('input', function(e) {
+    if (e.target && e.target.id === 'llm-key') refreshLocks();
+  });
+
+  // Show / hide key
+  document.getElementById('key-show-toggle').addEventListener('click', toggleKeyVisibility);
+
+  // Delegated click on every locked row — fires before the native click on
+  // the (disabled) input, so we can expand AI Settings and shake the key field.
+  document.querySelectorAll('.field-row.is-locked').forEach(row => {
+    row.addEventListener('click', handleLockedRowClick);
+  });
+
+  // Extract panel
+  document.getElementById('extract-toggle').addEventListener('change', updateExtractPanel);
+  document.getElementById('extract-schema').addEventListener('input',  updateConvertEnabled);
+
+  // Preset buttons
+  document.querySelectorAll('.preset-btn').forEach(btn => {
+    btn.addEventListener('click', () => loadPreset(btn.dataset.preset));
+  });
+
+  // Initial state — delayed to catch browser autofill/restore
+  refreshLocks();
+  updateConvertEnabled();
+  setTimeout(refreshLocks, 100);
+  setTimeout(refreshLocks, 500);
+})();
 </script>
 </body>
 </html>
