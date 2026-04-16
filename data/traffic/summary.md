@@ -1,7 +1,7 @@
 # Traffic Summary
 ## Clones (last 30 days)
-- Total: **941**
-- Unique: **256**
+- Total: **966**
+- Unique: **268**
 
 ## Views (last 30 days)
 - Total: **252**
@@ -11,18 +11,18 @@
 
 | Referrer | Count | Uniques |
 |---|---|---|
-| lakshgk.github.io | 607 | 102 |
-| github.com | 266 | 47 |
-| Google | 20 | 20 |
+| lakshgk.github.io | 675 | 111 |
+| github.com | 290 | 53 |
+| Google | 22 | 22 |
 
 ## Top paths (last 30 days)
 
 | Path | Count | Uniques |
 |---|---|---|
-| /lakshgk/distill | 450 | 130 |
-| /lakshgk/distill/tree/main | 109 | 46 |
-| /lakshgk/distill/tree/main/packages | 91 | 62 |
-| /lakshgk/distill/tree/main/docs | 71 | 30 |
-| /lakshgk/distill/blob/main/README.md | 49 | 21 |
+| /lakshgk/distill | 484 | 143 |
+| /lakshgk/distill/tree/main | 120 | 50 |
+| /lakshgk/distill/tree/main/packages | 101 | 68 |
+| /lakshgk/distill/tree/main/docs | 76 | 33 |
+| /lakshgk/distill/actions/workflows/traffic-metrics.yml | 54 | 9 |
 
-_Generated 2026-04-15 04:41:29 UTC_
+_Generated 2026-04-16 04:47:23 UTC_
