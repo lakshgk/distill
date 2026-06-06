@@ -1,7 +1,7 @@
 # Traffic Summary
 ## Clones (last 30 days)
-- Total: **421**
-- Unique: **231**
+- Total: **407**
+- Unique: **224**
 
 ## Views (last 30 days)
 - Total: **15**
@@ -11,17 +11,17 @@
 
 | Referrer | Count | Uniques |
 |---|---|---|
-| lakshgk.github.io | 105 | 27 |
-| github.com | 48 | 16 |
+| lakshgk.github.io | 95 | 25 |
+| github.com | 50 | 16 |
 
 ## Top paths (last 30 days)
 
 | Path | Count | Uniques |
 |---|---|---|
-| /lakshgk/distill | 122 | 37 |
-| /lakshgk/distill/commit/728636188846fb078bea4ca476e787a957d1c594 | 8 | 8 |
-| /lakshgk/distill/actions | 6 | 6 |
-| /lakshgk/distill/actions/runs/24977885466 | 6 | 6 |
-| /lakshgk/distill/stargazers | 6 | 6 |
+| /lakshgk/distill | 115 | 36 |
+| /lakshgk/distill/commit/728636188846fb078bea4ca476e787a957d1c594 | 9 | 9 |
+| /lakshgk/distill/tree/main/packages | 6 | 6 |
+| /lakshgk/distill/actions | 5 | 5 |
+| /lakshgk/distill/actions/runs/24977885466 | 5 | 5 |
 
-_Generated 2026-06-05 06:15:35 UTC_
+_Generated 2026-06-06 05:48:39 UTC_
