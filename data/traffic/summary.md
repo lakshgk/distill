@@ -1,7 +1,7 @@
 # Traffic Summary
 ## Clones (last 30 days)
-- Total: **436**
-- Unique: **232**
+- Total: **422**
+- Unique: **225**
 
 ## Views (last 30 days)
 - Total: **25**
@@ -11,17 +11,17 @@
 
 | Referrer | Count | Uniques |
 |---|---|---|
-| github.com | 149 | 42 |
-| lakshgk.github.io | 16 | 11 |
+| github.com | 164 | 46 |
+| lakshgk.github.io | 11 | 10 |
 
 ## Top paths (last 30 days)
 
 | Path | Count | Uniques |
 |---|---|---|
-| /lakshgk/distill | 99 | 53 |
-| /lakshgk/distill/tree/main/packages | 24 | 24 |
-| /lakshgk/distill/tree/main/packages/app/distill_app/static | 18 | 10 |
+| /lakshgk/distill | 103 | 56 |
+| /lakshgk/distill/tree/main/packages | 26 | 26 |
+| /lakshgk/distill/tree/main/packages/app/distill_app/static | 20 | 11 |
+| /lakshgk/distill/blob/main/docs/architecture.md | 15 | 15 |
 | /lakshgk/distill/commit/728636188846fb078bea4ca476e787a957d1c594 | 14 | 14 |
-| /lakshgk/distill/blob/main/docs/quickstart-service.md | 13 | 13 |
 
-_Generated 2026-06-15 07:11:01 UTC_
+_Generated 2026-06-16 07:19:40 UTC_
