@@ -1,7 +1,7 @@
 # Traffic Summary
 ## Clones (last 30 days)
-- Total: **439**
-- Unique: **232**
+- Total: **435**
+- Unique: **229**
 
 ## Views (last 30 days)
 - Total: **25**
@@ -11,17 +11,17 @@
 
 | Referrer | Count | Uniques |
 |---|---|---|
-| github.com | 180 | 52 |
-| lakshgk.github.io | 8 | 8 |
+| github.com | 188 | 55 |
+| lakshgk.github.io | 7 | 7 |
 
 ## Top paths (last 30 days)
 
 | Path | Count | Uniques |
 |---|---|---|
-| /lakshgk/distill | 110 | 60 |
-| /lakshgk/distill/tree/main/packages | 28 | 28 |
-| /lakshgk/distill/tree/main/packages/app/distill_app/static | 24 | 13 |
-| /lakshgk/distill/blob/main/docs/architecture.md | 19 | 19 |
-| /lakshgk/distill/commit/728636188846fb078bea4ca476e787a957d1c594 | 14 | 14 |
+| /lakshgk/distill | 114 | 62 |
+| /lakshgk/distill/tree/main/packages | 29 | 29 |
+| /lakshgk/distill/tree/main/packages/app/distill_app/static | 26 | 14 |
+| /lakshgk/distill/blob/main/docs/architecture.md | 21 | 21 |
+| /lakshgk/distill/tree/main/packages/app | 15 | 15 |
 
-_Generated 2026-06-18 06:46:02 UTC_
+_Generated 2026-06-19 06:58:53 UTC_
