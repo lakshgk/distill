@@ -18,7 +18,7 @@ infrastructure, see [quickstart-library.md](quickstart-library.md).
 ### 1. Clone the repository
 
 ```bash
-git clone https://github.com/nicobailon/distill.git
+git clone https://github.com/lakshgk/distill.git
 cd distill
 ```
 
